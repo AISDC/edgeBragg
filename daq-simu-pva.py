@@ -6,6 +6,7 @@ class daqSimuEPICS:
     def __init__(self, h5, daq_freq):
         self.arraySize = None
         
+        # replace the following line by loading data from the 5 file
         self.frames = np.random.randint(0, 256, size=(1000, 128, 256), dtype=np.uint16)
         self.rows, self.cols = self.frames.shape[-2:]
 
