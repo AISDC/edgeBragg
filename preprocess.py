@@ -8,7 +8,7 @@ def is_edge_zero(a):
            (np.count_nonzero(a[:, 0]) == 0) and \
            (np.count_nonzero(a[:,-1]) == 0)
 
-# @pysnooper.snoop()
+# local max of the connected component as center for crop
 def frame_peak_patches_maxcenter(frame, psz):
     h, w = frame.shape
     patches, peak_ori = [], []
@@ -40,6 +40,7 @@ def frame_peak_patches_maxcenter(frame, psz):
 
     return patches, np.array(peak_ori)
 
+# geometric center connected component as center for crop
 def frame_peak_patches_gcenter(frame, psz):
     h, w = frame.shape
     patches, peak_ori = [], []

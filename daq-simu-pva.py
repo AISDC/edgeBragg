@@ -10,9 +10,11 @@ class daqSimuEPICS:
         # self.frames = np.random.randint(0, 256, size=(1000, 128, 256), dtype=np.uint16)
         with h5py.File(h5, 'r') as h5fd:
             self.frames = h5fd['frames'][:]
+
         self.rows, self.cols = self.frames.shape[-2:]
 
         self.daq_freq = daq_freq
+        # make data acq and streaming async so as to overlap them for more accurate daq freq
         self.tq = queue.Queue()
         threading.Thread(target=self.frame_publisher, daemon=True).start()
 
@@ -32,7 +34,7 @@ class daqSimuEPICS:
                 nda = pva.NtNdArray()
             else:
                 nda = pva.NtNdArray(extraFieldsPvObject.getStructureDict())
-                
+
             nda['uniqueId'] = frm_id
             nda['codec'] = pva.PvCodec('pvapyc', pva.PvInt(14))
             dims = [pva.PvDimension(self.rows, 0, self.rows, 1, False), \
@@ -60,6 +62,6 @@ class daqSimuEPICS:
 
 
 if __name__ == '__main__':
-    daq = daqSimuEPICS(h5='../../../ai4science/BraggDP/dataset/Tin_Load00_linescan_00068.h5', daq_freq=1)
+    daq = daqSimuEPICS(h5='../../../ai4science/BraggDP/dataset/Tin_Load00_linescan_00068.h5', daq_freq=40)
 
     daq.start()
