@@ -1,4 +1,4 @@
-import time, threading, queue, h5py
+import time, threading, queue, h5py, argparse
 import numpy as np
 import pvaccess as pva
 
@@ -62,6 +62,13 @@ class daqSimuEPICS:
 
 
 if __name__ == '__main__':
-    daq = daqSimuEPICS(h5='../../../ai4science/BraggDP/dataset/Tin_Load00_linescan_00068.h5', daq_freq=40)
+    parser = argparse.ArgumentParser(description='simulate data streaming from detector using EPICS')
+    parser.add_argument('-ifn', type=str, required=True, help='h5 file to be streamed')
+    args, unparsed = parser.parse_known_args()
+    if len(unparsed) > 0:
+        print('Unrecognized argument(s): \n%s \nProgram exiting ... ... ' % '\n'.join(unparsed))
+        exit(0)
+        
+    daq = daqSimuEPICS(h5=args.ifn, daq_freq=40)
 
     daq.start()
