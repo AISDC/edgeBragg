@@ -10,18 +10,19 @@ from preprocess import frame_peak_patches_gcenter as frame2patch
 class pvaClient:
     def __init__(self, ):
         self.psz = 15
-        torch_dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.torch_dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.BraggNN  = BraggNN(imgsz=self.psz, fcsz=(16, 8, 4, 2)) # should use the same argu as it in the training.
         mdl_fn = 'models/fc16_8_4_2-sz15.pth'
         self.BraggNN .load_state_dict(torch.load(mdl_fn, map_location=torch.device('cpu')))
         if torch.cuda.is_available():
-            self.BraggNN = self.BraggNN.to(torch_dev)
+            self.BraggNN = self.BraggNN.to(self.torch_dev)
 
     def frame_process(self, frame):
         patches, patch_ori, big_peaks = frame2patch(frame=frame, psz=self.psz)
         input_tensor = torch.from_numpy(patches[:, np.newaxis].astype('float32'))
+        # todo, infer in a batch fashion in case of out-of-memory
         with torch.no_grad():
-            pred = self.BraggNN.forward(input_tensor).cpu().numpy()
+            pred = self.BraggNN.forward(input_tensor.to(self.torch_dev)).cpu().numpy()
         return pred * self.psz + patch_ori, big_peaks
 
     def monitor(self, pv):
