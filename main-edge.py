@@ -26,6 +26,7 @@ class pvaClient:
         return pred * self.psz + patch_ori, big_peaks
 
     def monitor(self, pv):
+        tick = time.time()
         uid = pv['uniqueId']
         print("%.3f received frame %d" % (time.time(), uid, ))
         dims = pv['dimension']
@@ -38,7 +39,10 @@ class pvaClient:
         # (1) overlap preporcess with BraggNN inference (on GPU)
         # (2) more consumers to frames
         peak_locs, big_peaks = self.frame_process(frame)
-        print("%.3f, %d peaks located in frame %d, %d peaks are too big" % (time.time(), peak_locs.shape[0], uid, big_peaks))
+
+        elapse = 1000 * (time.time() - tick)
+        print("%.3f, %d peaks located in frame %d, %.3fms/frame, %d peaks are too big" % (\
+              time.time(), peak_locs.shape[0], uid, elapse, big_peaks))
 
 def main_monitor():
     c = Channel('pvapy:image')
