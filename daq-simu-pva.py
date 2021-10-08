@@ -1,4 +1,4 @@
-import time, threading, queue
+import time, threading, queue, h5py
 import numpy as np
 import pvaccess as pva
 
@@ -7,7 +7,9 @@ class daqSimuEPICS:
         self.arraySize = None
         
         # replace the following line by loading data from the 5 file
-        self.frames = np.random.randint(0, 256, size=(1000, 128, 256), dtype=np.uint16)
+        # self.frames = np.random.randint(0, 256, size=(1000, 128, 256), dtype=np.uint16)
+        with h5py.File(h5, 'r') as h5fd:
+            self.frames = h5fd['frames'][:]
         self.rows, self.cols = self.frames.shape[-2:]
 
         self.daq_freq = daq_freq
@@ -33,15 +35,13 @@ class daqSimuEPICS:
                 
             nda['uniqueId'] = frm_id
             nda['codec'] = pva.PvCodec('pvapyc', pva.PvInt(14))
-            dims = [pva.PvDimension(self.cols, 0, self.cols, 1, False), \
-                    pva.PvDimension(self.rows, 0, self.rows, 1, False)]
+            dims = [pva.PvDimension(self.rows, 0, self.rows, 1, False), \
+                    pva.PvDimension(self.cols, 0, self.cols, 1, False)]
             nda['dimension'] = dims
             nda['descriptor'] = 'PvaPy Simulated Image'
-            nda['attribute'] = [pva.NtAttribute('rows', pva.PvInt(self.rows)), \
-                                pva.NtAttribute('cols', pva.PvInt(self.cols))]
-
             nda['value'] = {'ushortValue': self.frames[frm_id].flatten()}
-            # nda.set(extraFieldsPvObject)
+            if extraFieldsPvObject is not None:
+                nda.set(extraFieldsPvObject)
 
             if self.first_frame:
                 self.server.addRecord(self.channel, nda)
@@ -60,6 +60,6 @@ class daqSimuEPICS:
 
 
 if __name__ == '__main__':
-    daq = daqSimuEPICS(h5=None, daq_freq=1)
+    daq = daqSimuEPICS(h5='../../../ai4science/BraggDP/dataset/Tin_Load00_linescan_00068.h5', daq_freq=1)
 
     daq.start()
