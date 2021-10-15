@@ -7,9 +7,11 @@ class daqSimuEPICS:
         self.arraySize = None
         
         # replace the following line by loading data from the 5 file
-        # self.frames = np.random.randint(0, 256, size=(1000, 128, 256), dtype=np.uint16)
-        with h5py.File(h5, 'r') as h5fd:
-            self.frames = h5fd['frames'][:]
+        if h5 is None:
+            self.frames = np.random.randint(0, 256, size=(1000, 128, 256), dtype=np.uint16)
+        else:
+            with h5py.File(h5, 'r') as h5fd:
+                self.frames = h5fd['frames'][:]
 
         self.rows, self.cols = self.frames.shape[-2:]
 
@@ -28,7 +30,6 @@ class daqSimuEPICS:
     def frame_publisher(self, extraFieldsPvObject=None):
         while True:
             frm_id = self.tq.get()
-            print("sending  frame %d @ %f" % (frm_id, time.time()))
 
             if extraFieldsPvObject is None:
                 nda = pva.NtNdArray()
@@ -45,6 +46,7 @@ class daqSimuEPICS:
             if extraFieldsPvObject is not None:
                 nda.set(extraFieldsPvObject)
 
+            # print("sending  frame %d @ %f" % (frm_id, time.time()))
             if self.first_frame:
                 self.server.addRecord(self.channel, nda)
                 self.first_frame = False
@@ -52,6 +54,7 @@ class daqSimuEPICS:
                 self.server.update(self.channel, nda)
 
             self.tq.task_done()
+            print("sent     frame %d @ %f" % (frm_id, time.time()))
 
     def start(self, ):
         for fid in range(self.frames.shape[0]):
@@ -63,8 +66,8 @@ class daqSimuEPICS:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='simulate data streaming from detector using EPICS')
-    parser.add_argument('-ifn', type=str, required=True, help='h5 file to be streamed')
-    parser.add_argument('-fps', type=float, default=1, help='frame per second')
+    parser.add_argument('-ifn', type=str,   default=None, help='h5 file to be streamed')
+    parser.add_argument('-fps', type=float, default=20, help='frame per second')
 
     args, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:

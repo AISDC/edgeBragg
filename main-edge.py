@@ -1,5 +1,6 @@
 
-import time, torch
+# import time, torch
+import time
 from pvaccess import Channel
 from pvaccess import PvObject
 import numpy as np 
@@ -9,26 +10,30 @@ from preprocess import frame_peak_patches_gcenter as frame2patch
 
 class pvaClient:
     def __init__(self, ):
-        self.psz = 15
-        self.torch_dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.BraggNN  = BraggNN(imgsz=self.psz, fcsz=(16, 8, 4, 2)) # should use the same argu as it in the training.
-        mdl_fn = 'models/fc16_8_4_2-sz15.pth'
-        self.BraggNN .load_state_dict(torch.load(mdl_fn, map_location=torch.device('cpu')))
-        if torch.cuda.is_available():
-            self.BraggNN = self.BraggNN.to(self.torch_dev)
+        pass
+        # self.psz = 15
+        # self.torch_dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # self.BraggNN  = BraggNN(imgsz=self.psz, fcsz=(16, 8, 4, 2)) # should use the same argu as it in the training.
+        # mdl_fn = 'models/fc16_8_4_2-sz15.pth'
+        # self.BraggNN .load_state_dict(torch.load(mdl_fn, map_location=torch.device('cpu')))
+        # if torch.cuda.is_available():
+        #     self.BraggNN = self.BraggNN.to(self.torch_dev)
 
     def frame_process(self, frame):
-        patches, patch_ori, big_peaks = frame2patch(frame=frame, psz=self.psz)
-        input_tensor = torch.from_numpy(patches[:, np.newaxis].astype('float32'))
-        # todo, infer in a batch fashion in case of out-of-memory
-        with torch.no_grad():
-            pred = self.BraggNN.forward(input_tensor.to(self.torch_dev)).cpu().numpy()
-        return pred * self.psz + patch_ori, big_peaks
+        return None
+        # patches, patch_ori, big_peaks = frame2patch(frame=frame, psz=self.psz)
+        # input_tensor = torch.from_numpy(patches[:, np.newaxis].astype('float32'))
+        # # todo, infer in a batch fashion in case of out-of-memory
+        # with torch.no_grad():
+        #     pred = self.BraggNN.forward(input_tensor.to(self.torch_dev)).cpu().numpy()
+        # return pred * self.psz + patch_ori, big_peaks
 
     def monitor(self, pv):
         tick = time.time()
         uid = pv['uniqueId']
-        # print("%.3f received frame %d" % (time.time(), uid, ))
+        print("%.3f received frame %d" % (time.time(), uid, ))
+        return
+
         dims = pv['dimension']
         rows = dims[0]['size']
         cols = dims[1]['size']
@@ -45,21 +50,21 @@ class pvaClient:
 
 def main_monitor():
     c = Channel('pvapy:image')
-    c.setMonitorMaxQueueLength(-1)
+    # c.setMonitorMaxQueueLength(-1)
 
     client = pvaClient()
 
     c.subscribe('monitor', client.monitor)
     c.startMonitor('')
 
-# ToDo check if it is done from client, where streaming gives signal
+    # ToDo check if it is done from server/detector, where streaming gives signal
     time.sleep(1000)
     c.stopMonitor()
     c.unsubscribe('monitor')
 
 # limitation here: the same frame will be get() over and over again till server got the notification
 def main_get():
-    max_queue_size = 10
+    max_queue_size = -1
     c = Channel('pvapy:image')
     c.setMonitorMaxQueueLength(max_queue_size)
 
