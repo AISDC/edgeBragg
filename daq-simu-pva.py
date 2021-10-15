@@ -6,9 +6,8 @@ class daqSimuEPICS:
     def __init__(self, h5, daq_freq):
         self.arraySize = None
         
-        # replace the following line by loading data from the 5 file
         if h5 is None:
-            self.frames = np.random.randint(0, 256, size=(1000, 128, 256), dtype=np.uint16)
+            self.frames = np.random.randint(0, 256, size=(240, 2048, 2048), dtype=np.uint16)
         else:
             with h5py.File(h5, 'r') as h5fd:
                 self.frames = h5fd['frames'][:]
@@ -30,6 +29,7 @@ class daqSimuEPICS:
     def frame_publisher(self, extraFieldsPvObject=None):
         while True:
             frm_id = self.tq.get()
+            self.tq.task_done()
 
             if extraFieldsPvObject is None:
                 nda = pva.NtNdArray()
@@ -50,10 +50,14 @@ class daqSimuEPICS:
             if self.first_frame:
                 self.server.addRecord(self.channel, nda)
                 self.first_frame = False
+                # at the very begining the channel is not there
+                # by the time epics established connection, you may already replaced image
+                # depends on how muchtime it takes to establish connection and FPS
+                # wait for 0.5 is not a neat solution though
+                time.sleep(0.5) # make sure it's propogated
             else:
                 self.server.update(self.channel, nda)
 
-            self.tq.task_done()
             print("sent     frame %d @ %f" % (frm_id, time.time()))
 
     def start(self, ):
