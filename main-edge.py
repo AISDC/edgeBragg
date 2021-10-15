@@ -28,13 +28,12 @@ class pvaClient:
     def monitor(self, pv):
         tick = time.time()
         uid = pv['uniqueId']
-        print("%.3f received frame %d" % (time.time(), uid, ))
+        # print("%.3f received frame %d" % (time.time(), uid, ))
         dims = pv['dimension']
         rows = dims[0]['size']
         cols = dims[1]['size']
         frame = pv['value'][0]['ushortValue'].reshape((rows, cols))
 
-        # time.sleep(1.5) # simulating data processing
         # further optimization: 
         # (1) overlap preporcess with BraggNN inference (on GPU)
         # (2) more consumers to frames
