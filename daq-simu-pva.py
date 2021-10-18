@@ -7,7 +7,7 @@ class daqSimuEPICS:
         self.arraySize = None
         
         if h5 is None:
-            self.frames = np.random.randint(0, 256, size=(240, 2048, 2048), dtype=np.uint16)
+            self.frames = np.random.randint(0, 256, size=(1000, 2, 3), dtype=np.uint16)
         else:
             with h5py.File(h5, 'r') as h5fd:
                 self.frames = h5fd['frames'][:]
@@ -65,13 +65,14 @@ class daqSimuEPICS:
             time.sleep(1 / self.daq_freq)
             self.tq.put(fid)
             print("produced frame %d @ %f" % (fid, time.time()))
+        time.sleep(0.5) # there should be a better way to make sure all frames are ack'ed before exiting
         self.tq.join()
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='simulate data streaming from detector using EPICS')
     parser.add_argument('-ifn', type=str,   default=None, help='h5 file to be streamed')
-    parser.add_argument('-fps', type=float, default=20, help='frame per second')
+    parser.add_argument('-fps', type=float, default=1,    help='frame per second')
 
     args, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
