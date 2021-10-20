@@ -1,5 +1,5 @@
 
-import time, queue, threading, sys
+import time, queue, threading, sys, os
 import torch, argparse, logging
 from pvaccess import Channel
 from pvaccess import PvObject
@@ -35,7 +35,7 @@ class pvaClient:
             self.frames_processed += 1
             self.tq.task_done()
 
-            # time.sleep(0.1) # mimic processing
+            time.sleep(0.9) # mimic processing
             tick = time.time()
             patches, patch_ori, big_peaks = frame2patch(frame=frame, psz=self.psz)
             if patches.shape[0] == 0:
@@ -93,13 +93,15 @@ def main_monitor(ch):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='edge pipeline for Bragg peak finding')
-    parser.add_argument('-ch', type=str, default='pvapy:image',    help='pva channel name')
+    parser.add_argument('-gpus', type=str, default="0", help='list of visiable GPUs')
+    parser.add_argument('-ch',   type=str, default='pvapy:image',    help='pva channel name')
 
     args, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
         print('Unrecognized argument(s): \n%s \nProgram exiting ... ... ' % '\n'.join(unparsed))
         exit(0)
-
+    if len(args.gpus) > 0:
+        os.environ['CUDA_VISIBLE_DEVICES'] = args.gpus
     logging.basicConfig(filename='edgeBragg.log', level=logging.DEBUG)
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
