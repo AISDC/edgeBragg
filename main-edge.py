@@ -9,7 +9,7 @@ from BraggNN import BraggNN
 from preprocess import frame_peak_patches_gcenter as frame2patch
 
 class pvaClient:
-    def __init__(self, ):
+    def __init__(self, nth=1):
         self.psz = 15
         self.torch_dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.BraggNN  = BraggNN(imgsz=self.psz, fcsz=(16, 8, 4, 2)) # should use the same argu as it in the training.
@@ -21,7 +21,9 @@ class pvaClient:
         self.base_seq_id = None
         self.recv_frames = 0
         self.tq = queue.Queue()
-        threading.Thread(target=self.frame_process, daemon=True).start()
+
+        for _ in range(nth):
+            threading.Thread(target=self.frame_process, daemon=True).start()
 
     def frame_process(self, ):
         while True:
@@ -35,7 +37,6 @@ class pvaClient:
             self.frames_processed += 1
             self.tq.task_done()
 
-            time.sleep(0.9) # mimic processing
             tick = time.time()
             patches, patch_ori, big_peaks = frame2patch(frame=frame, psz=self.psz)
             if patches.shape[0] == 0:
@@ -94,7 +95,8 @@ def main_monitor(ch):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='edge pipeline for Bragg peak finding')
     parser.add_argument('-gpus', type=str, default="0", help='list of visiable GPUs')
-    parser.add_argument('-ch',   type=str, default='pvapy:image',    help='pva channel name')
+    parser.add_argument('-ch',   type=str, default='pvapy:image', help='pva channel name')
+    parser.add_argument('-nth',  type=int, default=1, help='number of threads for frame processes')
 
     args, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
