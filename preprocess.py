@@ -41,10 +41,10 @@ def frame_peak_patches_maxcenter(frame, psz):
     return patches, np.array(peak_ori)
 
 # geometric center connected component as center for crop
-def frame_peak_patches_gcenter(frame, psz):
+def frame_peak_patches_gcenter(frame, psz, min_intensity=0):
     h, w = frame.shape
     patches, peak_ori = [], []
-    labels = measure.label(frame > 0) # 17ms
+    labels = measure.label(frame > min_intensity) # 17ms
     
     big_peaks = 0
     for c in measure.regionprops(labels):
@@ -69,6 +69,8 @@ def frame_peak_patches_gcenter(frame, psz):
 
     # min-max norm all patches
     patches = np.array(patches)
+    if patches.shape[0] == 0:
+        return patches, None, big_peaks
     _min = patches.min(axis=(1, 2))[:, np.newaxis, np.newaxis]
     _max = patches.max(axis=(1, 2))[:, np.newaxis, np.newaxis]
     patches = (patches - _min) / (_max - _min)

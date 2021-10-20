@@ -30,18 +30,21 @@ class pvaClient:
             rows = dims[0]['size']
             cols = dims[1]['size']
             frame = pv['value'][0]['ushortValue'].reshape((rows, cols))
+            self.frames_processed += 1
             self.tq.task_done()
 
             # time.sleep(0.1) # mimic processing
             tick = time.time()
             patches, patch_ori, big_peaks = frame2patch(frame=frame, psz=self.psz)
+            if patches.shape[0] == 0:
+                print("%.3f, %d peaks located in frame %d, %.3fms/frame, %d peaks are too big; %d frames processed so far" % (\
+                    time.time(), patches.shape[0], frm_id, elapse, big_peaks, self.frames_processed))
             input_tensor = torch.from_numpy(patches[:, np.newaxis].astype('float32'))
             # todo, infer in a batch fashion in case of out-of-memory
             with torch.no_grad():
                 pred = self.BraggNN.forward(input_tensor.to(self.torch_dev)).cpu().numpy()
             peak_locs, big_peaks = pred * self.psz + patch_ori, big_peaks
 
-            self.frames_processed += 1
             elapse = 1000 * (time.time() - tick)
             print("%.3f, %d peaks located in frame %d, %.3fms/frame, %d peaks are too big; %d frames processed so far" % (\
                 time.time(), peak_locs.shape[0], frm_id, elapse, big_peaks, self.frames_processed))
