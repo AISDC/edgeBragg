@@ -21,12 +21,13 @@ class pvaClient:
         self.base_seq_id = None
         self.recv_frames = 0
         self.tq = queue.Queue()
+        self.thr_exit = 0
 
         for _ in range(nth):
             threading.Thread(target=self.frame_process, daemon=True).start()
 
     def frame_process(self, ):
-        while True:
+        while self.thr_exit == 0:
             pv = self.tq.get()
             frm_id = pv['uniqueId']
 
@@ -59,17 +60,28 @@ class pvaClient:
         self.tq.put(pv.copy())
         logging.info("%.3f received frame %d, total frame received: %d, should have received: %d" % (time.time(), uid, self.recv_frames, uid - self.base_seq_id + 1))
 
-def main_monitor(ch):
+def main_monitor(ch, nth):
     c = Channel(ch)
     c.setMonitorMaxQueueLength(-1)
 
-    client = pvaClient()
+    client = pvaClient(nth)
 
     c.subscribe('monitor', client.monitor)
     c.startMonitor('')
 
     # ToDo check if it is done from server/detector, where streaming gives signal
-    time.sleep(1000)
+    time.sleep(2)
+
+    # exit when idle for 10 seconds
+    while True:
+        prog = client.recv_frames
+        time.sleep(10)
+        if prog == client.recv_frames:
+            break
+    client.tq.join()
+    client.thr_exit = 1
+    time.sleep(2) # give threads seconds to exit
+
     c.stopMonitor()
     c.unsubscribe('monitor')
 
@@ -107,6 +119,6 @@ if __name__ == '__main__':
     logging.basicConfig(filename='edgeBragg.log', level=logging.DEBUG)
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
-    main_monitor(args.ch)
+    main_monitor(ch=args.ch, nth=args.nth)
     # main_get()
 
