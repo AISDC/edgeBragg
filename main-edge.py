@@ -20,7 +20,7 @@ class pvaClient:
         self.frames_processed = 0
         self.base_seq_id = None
         self.recv_frames = 0
-        self.tq = queue.Queue()
+        self.tq = queue.Queue(maxsize=-1)
         self.thr_exit = 0
 
         for _ in range(nth):
@@ -28,37 +28,44 @@ class pvaClient:
 
     def frame_process(self, ):
         while self.thr_exit == 0:
-            pv = self.tq.get()
-            frm_id = pv['uniqueId']
+            try:
+                pv = self.tq.get(block=True, timeout=1)
+            except queue.Empty:
+                continue
+            except:
+                logging.error("Something else of the Queue went wrong")
+                continue
 
-            dims = pv['dimension']
-            rows = dims[0]['size']
-            cols = dims[1]['size']
+            frm_id= pv['uniqueId']
+            dims  = pv['dimension']
+            rows  = dims[0]['size']
+            cols  = dims[1]['size']
             frame = pv['value'][0]['ushortValue'].reshape((rows, cols))
-            self.frames_processed += 1
             self.tq.task_done()
 
             tick = time.time()
             patches, patch_ori, big_peaks = frame2patch(frame=frame, psz=self.psz)
-            if patches.shape[0] == 0:
-                logging.info("%.3f, %d peaks located in frame %d, %.3fms/frame, %d peaks are too big; %d frames processed so far" % (\
-                             time.time(), patches.shape[0], frm_id, elapse, big_peaks, self.frames_processed))
-            input_tensor = torch.from_numpy(patches[:, np.newaxis].astype('float32'))
-            # todo, infer in a batch fashion in case of out-of-memory
-            with torch.no_grad():
-                pred = self.BraggNN.forward(input_tensor.to(self.torch_dev)).cpu().numpy()
-            peak_locs, big_peaks = pred * self.psz + patch_ori, big_peaks
+            if patches.shape[0] > 0:
+                input_tensor = torch.from_numpy(patches[:, np.newaxis].astype('float32'))
+                # todo, infer in a batch fashion in case of out-of-memory
+                with torch.no_grad():
+                    pred = self.BraggNN.forward(input_tensor.to(self.torch_dev)).cpu().numpy()
+                peak_locs, big_peaks = pred * self.psz + patch_ori, big_peaks
 
+            self.frames_processed += 1 # has race condition
             elapse = 1000 * (time.time() - tick)
-            logging.info("%.3f, %d peaks located in frame %d, %.3fms/frame, %d peaks are too big; %d frames processed so far" % (\
-                         time.time(), peak_locs.shape[0], frm_id, elapse, big_peaks, self.frames_processed))
+            logging.info("[%.3f] %d peaks located in frame %d, %.3fms/frame, %d peaks are too big; %d out of %d frames processed so far" % (\
+                        time.time(), patches.shape[0], frm_id, elapse, big_peaks, self.frames_processed, self.recv_frames))
+
+        logging.info(f"worker thread {threading.get_ident() } exiting now")
 
     def monitor(self, pv):
         uid = pv['uniqueId']
         if self.base_seq_id is None: self.base_seq_id = uid
         self.recv_frames += 1
         self.tq.put(pv.copy())
-        logging.info("%.3f received frame %d, total frame received: %d, should have received: %d" % (time.time(), uid, self.recv_frames, uid - self.base_seq_id + 1))
+        logging.info("[%.3f] received frame %d, total frame received: %d, should have received: %d; %d frames pending process" % (\
+                     time.time(), uid, self.recv_frames, uid - self.base_seq_id + 1, self.tq.qsize()))
 
 def main_monitor(ch, nth):
     c = Channel(ch)
@@ -74,9 +81,11 @@ def main_monitor(ch, nth):
 
     # exit when idle for 10 seconds
     while True:
-        prog = client.recv_frames
+        recv_prog = client.recv_frames
+        proc_prog = client.frames_processed
         time.sleep(10)
-        if prog == client.recv_frames:
+        if recv_prog == client.recv_frames and proc_prog == client.frames_processed:
+            logging.info("program exits because of silence")
             break
     client.tq.join()
     client.thr_exit = 1
@@ -85,40 +94,25 @@ def main_monitor(ch, nth):
     c.stopMonitor()
     c.unsubscribe('monitor')
 
-# limitation here: the same frame will be get() over and over again till server got the notification
-# def main_get():
-#     max_queue_size = -1
-#     c = Channel('pvapy:image')
-##    c = Channel('13SIM1:Pva1:Image')
-#     c.setMonitorMaxQueueLength(max_queue_size)
-
-#     while True:
-#         pv = c.get('')
-#         uid = pv['uniqueId']
-#         print("received frame %d @ %.3f" % (uid, time.time()))
-#         dims = pv['dimension']
-#         rows = dims[0]['size']
-#         cols = dims[1]['size']
-#         frame = pv['value'][0]['ushortValue'].reshape((rows, cols))
-
-#         print(frame.shape)
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='edge pipeline for Bragg peak finding')
     parser.add_argument('-gpus', type=str, default="0", help='list of visiable GPUs')
     parser.add_argument('-ch',   type=str, default='pvapy:image', help='pva channel name')
-    parser.add_argument('-nth',  type=int, default=1, help='number of threads for frame processes')
+    parser.add_argument('-nth',  type=int, default=2, help='number of threads for frame processes')
+    parser.add_argument('-terminal',  type=int, default=0, help='non-zero to print logs to stdout')
 
     args, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
         print('Unrecognized argument(s): \n%s \nProgram exiting ... ... ' % '\n'.join(unparsed))
         exit(0)
+
     if len(args.gpus) > 0:
         os.environ['CUDA_VISIBLE_DEVICES'] = args.gpus
-    logging.basicConfig(filename='edgeBragg.log', level=logging.DEBUG)
-    logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+
+    logging.basicConfig(filename='edgeBragg.log', level=logging.DEBUG,\
+                        format='%(asctime)s %(levelname)-8s %(message)s',)
+    if args.terminal != 0:
+        logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
     main_monitor(ch=args.ch, nth=args.nth)
-    # main_get()
 

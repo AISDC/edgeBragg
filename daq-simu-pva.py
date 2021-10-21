@@ -7,7 +7,7 @@ class daqSimuEPICS:
         self.arraySize = None
         
         if h5 is None:
-            self.frames = np.random.randint(0, 256, size=(1000, 2048, 2048), dtype=np.uint16)
+            self.frames = np.random.randint(0, 256, size=(100, 2048, 2048), dtype=np.uint16)
         else:
             with h5py.File(h5, 'r') as h5fd:
                 self.frames = h5fd['frames'][:]
