@@ -18,7 +18,7 @@ class BraggNNDataset(Dataset):
         return self.patches.shape[0]
 
 def main(args):
-    ds = BraggNNDataset(args.samples, args.psz)
+    ds = BraggNNDataset(args.samples + args.warmup * args.mbsz, args.psz)
     mb_data_iter = DataLoader(dataset=ds, batch_size=args.mbsz, shuffle=True,\
                               num_workers=2, prefetch_factor=args.mbsz, drop_last=False, pin_memory=True)
 
@@ -30,28 +30,30 @@ def main(args):
         if gpus > 1:
             logging.info("This implementation only makes use of one GPU although %d are visiable" % gpus)
         model = model.to(torch_devs)
-        logging.info("%d GPUs detected, one will be used for the DNN" % gpus)
+        # logging.info("%d GPUs detected, one will be used for the DNN" % gpus)
 
     pred, gt = [], []
-    inference_tick = time.time()
-    time_comp = 0
+    batch_time = []
     for i, (X_mb, y_mb) in enumerate(mb_data_iter):
+        it_tick = time.time()
         X_mb_dev = X_mb.to(torch_devs)
-        it_comp_tick = time.time()
         with torch.no_grad():
                 pred_val = model.forward(X_mb_dev).cpu().numpy()
-        mb_time = 1000 * (time.time() - it_comp_tick)
-        time_comp += mb_time
-        print("batch %d takes %.3f ms (%.3f ms / sample)" % (i, mb_time, mb_time/args.mbsz))
+        t_e2e = 1000 * (time.time() - it_tick)
+
+        if i >= args.warmup:
+            batch_time.append(t_e2e)
+
+        # print("batch %d takes %.3f ms (%.3f ms / sample)" % (i, mb_time, mb_time/args.mbsz))
         pred.append(pred_val)
         gt.append(y_mb.numpy())
-    time_on_inference = 1000 * (time.time() - inference_tick)
+    # time_on_inference = 1000 * (time.time() - inference_tick)
 
     pred = np.concatenate(pred, axis=0)
     gt   = np.concatenate(gt,   axis=0)
-    rate = time_on_inference / gt.shape[0]
-    logging.info("Inference for %d samples using mbsz of %d, took %.3f seconds (comp=%.3fs, %.3f ms/batch %.3f ms/sample)" % (\
-                 gt.shape[0], args.mbsz, time_on_inference*1e-3, time_comp*1e-3, time_on_inference/(len(mb_data_iter)), rate))
+    print("[Torch] BS=%d, batches=%d, psz=%d; time per batch: min: %.3f ms, median: %.3f ms, max: %.3f ms; rate: %.2f us/sample" % (\
+          args.mbsz, len(batch_time), args.psz, np.min(batch_time), np.median(batch_time), np.max(batch_time), \
+          1000 * np.median(batch_time) / args.mbsz))
 
 def main_jit(args):
     ds = BraggNNDataset(args.samples, args.psz)
@@ -147,11 +149,11 @@ if __name__ == "__main__":
     parser.add_argument('-mbsz',   type=int, default=512, help='mini batch size')
     parser.add_argument('-psz',    type=int, default=15, help='input size')
     parser.add_argument('-samples',type=int, default=10240, help='sample size')
+    parser.add_argument('-warmup', type=int, default=20, help='warm up batches')
     parser.add_argument('-ifn',    type=str, default=None, help='input h5 file')
     parser.add_argument('-mdl',    type=str, default='models/fc16_8_4_2-sz15.pth', help='model weights')
 
     args, unparsed = parser.parse_known_args()
-
     if len(unparsed) > 0:
         print('Unrecognized argument(s): \n%s \nProgram exiting ... ... ' % '\n'.join(unparsed))
         exit(0)
