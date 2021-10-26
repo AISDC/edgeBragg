@@ -1,5 +1,6 @@
 #! /bin/bash
 PY=/usr/bin/python3
+PY=/homes/zhengchun.liu/usr/miniconda3/envs/trt/bin/python
 $PY ./bm_BraggNN.py -mdl=models/fc16_8_4_2-sz11.pth -psz=11 -mbsz=32
 $PY ./bm_BraggNN.py -mdl=models/fc16_8_4_2-sz11.pth -psz=11 -mbsz=64
 $PY ./bm_BraggNN.py -mdl=models/fc16_8_4_2-sz11.pth -psz=11 -mbsz=128
