@@ -164,4 +164,4 @@ if __name__ == "__main__":
     main(args)
     # main_jit(args)
     # main_onnx(args)
-    # pth2onnx(args)
+    pth2onnx(args)
