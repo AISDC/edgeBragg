@@ -101,7 +101,7 @@ def pth2onnx(args):
     output_names = ('ploc',  )
 
     onnx_fn = args.mdl.replace(".pth", ".onnx")
-    torch.onnx.export(model, dummy_input, onnx_fn, verbose=True, \
+    torch.onnx.export(model, dummy_input, onnx_fn, verbose=False, \
                       input_names=input_names, output_names=output_names)
     return onnx_fn
 
@@ -144,7 +144,7 @@ if __name__ == "__main__":
     parser.add_argument('-gpus',   type=str, default="0", help='the GPU to use')
     parser.add_argument('-mbsz',   type=int, default=512, help='mini batch size')
     parser.add_argument('-psz',    type=int, default=15, help='input size')
-    parser.add_argument('-samples',type=int, default=10240, help='sample size')
+    parser.add_argument('-samples',type=int, default=40960, help='sample size')
     parser.add_argument('-ifn',    type=str, default=None, help='input h5 file')
     parser.add_argument('-mdl',    type=str, default='models/fc16_8_4_2-sz15.pth', help='model weights')
 
@@ -164,4 +164,4 @@ if __name__ == "__main__":
     main(args)
     # main_jit(args)
     # main_onnx(args)
-    pth2onnx(args)
+    # pth2onnx(args)

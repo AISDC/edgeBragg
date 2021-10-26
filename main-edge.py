@@ -97,7 +97,7 @@ def main_monitor(ch, nth):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='edge pipeline for Bragg peak finding')
     parser.add_argument('-gpus', type=str, default="0", help='list of visiable GPUs')
-    parser.add_argument('-ch',   type=str, default='pvapy:image', help='pva channel name')
+    parser.add_argument('-ch',   type=str, default='13SIM1:Pva1:Image', help='pva channel name')
     parser.add_argument('-nth',  type=int, default=2, help='number of threads for frame processes')
     parser.add_argument('-terminal',  type=int, default=0, help='non-zero to print logs to stdout')
 

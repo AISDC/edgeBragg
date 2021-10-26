@@ -60,6 +60,8 @@ def build_engine_onnx(model_file):
     builder = trt.Builder(TRT_LOGGER)
     network = builder.create_network(EXPLICIT_BATCH)
     config  = builder.create_builder_config()
+    # config.set_flag(trt.BuilderFlag.FP16)
+    config.set_flag(trt.BuilderFlag.TF32)
     parser  = trt.OnnxParser(network, TRT_LOGGER)
 
     config.max_workspace_size = 1 * (1 << 30)
@@ -80,7 +82,7 @@ def main():
 
     inputs, outputs, bindings, stream = allocate_buffers(engine)
 
-    mbsz = 512
+    mbsz = 256
     batch_latency = []
     for i in range(10):
         patches = np.random.rand(mbsz, 1, 15, 15).astype(np.float32).ravel()
