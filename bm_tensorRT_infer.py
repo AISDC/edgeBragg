@@ -80,9 +80,10 @@ def main():
 
     inputs, outputs, bindings, stream = allocate_buffers(engine)
 
+    mbsz = 512
     batch_latency = []
     for i in range(10):
-        patches = np.random.rand(512, 1, 15, 15).astype(np.float32).ravel()
+        patches = np.random.rand(mbsz, 1, 15, 15).astype(np.float32).ravel()
         tick = time.time()
         np.copyto(inputs[0].host, patches)
         # Contexts are used to perform inference.
@@ -93,7 +94,7 @@ def main():
 
         t_e2e = 1000 * (time.time() - tick)
         batch_latency.append(t_e2e)
-        print("batch %d takes %.3f ms" % (i, t_e2e, ))
+        print("batch %d takes %.3f ms (%.3f ms / sample)" % (i, t_e2e, t_e2e/mbsz))
 
 if __name__ == '__main__':
     main()
