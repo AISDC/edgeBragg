@@ -3,7 +3,7 @@ from BraggNN import BraggNN
 import torch, argparse, os, time, sys, logging
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
-import onnxruntime as rt
+#import onnxruntime as rt
 
 class BraggNNDataset(Dataset):
     def __init__(self, samples=10240, psz=11):
@@ -35,13 +35,14 @@ def main(args):
     pred, gt = [], []
     inference_tick = time.time()
     time_comp = 0
-    for X_mb, y_mb in mb_data_iter:
+    for i, (X_mb, y_mb) in enumerate(mb_data_iter):
         X_mb_dev = X_mb.to(torch_devs)
         it_comp_tick = time.time()
         with torch.no_grad():
                 pred_val = model.forward(X_mb_dev).cpu().numpy()
-        time_comp += 1000 * (time.time() - it_comp_tick)
-
+        mb_time = 1000 * (time.time() - it_comp_tick)
+        time_comp += mb_time
+        print("batch %d takes %.3f ms (%.3f ms / sample)" % (i, mb_time, mb_time/args.mbsz))
         pred.append(pred_val)
         gt.append(y_mb.numpy())
     time_on_inference = 1000 * (time.time() - inference_tick)
@@ -122,12 +123,13 @@ def main_onnx(args):
     pred, gt = [], []
     inference_tick = time.time()
     time_comp = 0
-    for X_mb, y_mb in mb_data_iter:
+    for i, (X_mb, y_mb) in enumerate(mb_data_iter):
         #X_mb_dev = X_mb.cuda()
         it_comp_tick = time.time()
         pred_val = sess.run([label_name], {input_name: X_mb.numpy()})[0]
-        time_comp += 1000 * (time.time() - it_comp_tick)
-
+        mb_time = 1000 * (time.time() - it_comp_tick)
+        time_comp += mb_time
+        print("batch %d takes %.3f ms (%.3f ms / sample)" % (i, mb_time, mb_time/args.mbsz))
         pred.append(pred_val)
         gt.append(y_mb.numpy())
     time_on_inference = 1000 * (time.time() - inference_tick)
@@ -144,7 +146,7 @@ if __name__ == "__main__":
     parser.add_argument('-gpus',   type=str, default="0", help='the GPU to use')
     parser.add_argument('-mbsz',   type=int, default=512, help='mini batch size')
     parser.add_argument('-psz',    type=int, default=15, help='input size')
-    parser.add_argument('-samples',type=int, default=40960, help='sample size')
+    parser.add_argument('-samples',type=int, default=10240, help='sample size')
     parser.add_argument('-ifn',    type=str, default=None, help='input h5 file')
     parser.add_argument('-mdl',    type=str, default='models/fc16_8_4_2-sz15.pth', help='model weights')
 
@@ -164,4 +166,4 @@ if __name__ == "__main__":
     main(args)
     # main_jit(args)
     # main_onnx(args)
-    # pth2onnx(args)
+    pth2onnx(args)
