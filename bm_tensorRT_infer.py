@@ -62,12 +62,7 @@ def do_inference(context, bindings, inputs, outputs, stream):
 def build_engine_onnx(model_file):
     builder = trt.Builder(TRT_LOGGER)
     network = builder.create_network(EXPLICIT_BATCH)
-    config  = builder.create_builder_config()
-    # config.set_flag(trt.BuilderFlag.FP16)
-    config.set_flag(trt.BuilderFlag.TF32)
     parser  = trt.OnnxParser(network, TRT_LOGGER)
-
-    config.max_workspace_size = 1 * (1 << 30)
     # Load the Onnx model and parse it in order to populate the TensorRT network.
     with open(model_file, 'rb') as model:
         if not parser.parse(model.read()):
@@ -75,6 +70,11 @@ def build_engine_onnx(model_file):
             for error in range(parser.num_errors):
                 print (parser.get_error(error))
             return None
+
+    config  = builder.create_builder_config()
+    # config.set_flag(trt.BuilderFlag.FP16)
+    config.set_flag(trt.BuilderFlag.TF32)
+    config.max_workspace_size = 1 * (1 << 30)
     return builder.build_engine(network, config)
 
 def pth2onnx(args):
