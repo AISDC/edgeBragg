@@ -62,6 +62,8 @@ class daqSimuEPICS:
 
     def start(self, ):
         for fid in range(self.frames.shape[0]):
+        # for i in range(1000000000):
+            # fid = i % self.frames.shape[0]
             time.sleep(1 / self.daq_freq)
             self.tq.put(fid)
             print("produced frame %d @ %f" % (fid, time.time()))
