@@ -12,7 +12,7 @@ class BraggNNDataset(Dataset):
             self.peakLoc = torch.rand(samples, 2)
         else:
             with h5py.File(ifn, 'r') as fd:
-                self.patches = fd['patch'][:][:,np.newaxis]
+                self.patches = fd['patch'][:][:,np.newaxis].astype(np.float32)
                 self.peakLoc = fd['peakLoc'][:]
         self.psz = self.patches.shape[-1]
 
