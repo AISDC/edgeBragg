@@ -42,7 +42,7 @@ def main(args):
         it_tick = time.time()
         X_mb_dev = X_mb.to(torch_devs)
         with torch.no_grad():
-                pred_val = model.forward(X_mb_dev).cpu().numpy()
+            pred_val = model.forward(X_mb_dev).cpu().numpy()
         t_e2e = 1000 * (time.time() - it_tick)
 
         if i >= args.warmup:
