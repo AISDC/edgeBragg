@@ -4,10 +4,26 @@ import numpy as np
 import pycuda.autoinit
 import tensorrt as trt
 import pycuda.driver as cuda
-import time, argparse
+import time, argparse, torch
+from torch.utils.data import DataLoader, Dataset
 
-EXPLICIT_BATCH = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
-TRT_LOGGER = trt.Logger(trt.Logger.ERROR)
+class BraggNNDataset(Dataset):
+    def __init__(self, ifn=None, samples=10240, psz=11):
+        if ifn is None:
+            self.patches = torch.rand(samples, 1, psz, psz)
+            self.peakLoc = torch.rand(samples, 2)
+        else:
+            import h5py
+            with h5py.File(ifn, 'r') as fd:
+                self.patches = fd['patch'][:][:,np.newaxis]
+                self.peakLoc = fd['peakLoc'][:]
+        self.psz = self.patches.shape[-1]
+
+    def __getitem__(self, idx):
+        return self.patches[idx], self.peakLoc[idx]
+
+    def __len__(self):
+        return self.patches.shape[0]
 
 class HostDeviceMem(object):
     def __init__(self, host_mem, device_mem):
@@ -60,6 +76,8 @@ def do_inference(context, bindings, inputs, outputs, stream):
 
 # The Onnx path is used for Onnx models.
 def build_engine_onnx(model_file):
+    EXPLICIT_BATCH = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
+    TRT_LOGGER = trt.Logger(trt.Logger.ERROR)
     builder = trt.Builder(TRT_LOGGER)
     network = builder.create_network(EXPLICIT_BATCH)
     parser  = trt.OnnxParser(network, TRT_LOGGER)
@@ -72,8 +90,8 @@ def build_engine_onnx(model_file):
             return None
 
     config  = builder.create_builder_config()
-    # config.set_flag(trt.BuilderFlag.FP16)
-    config.set_flag(trt.BuilderFlag.TF32)
+    config.set_flag(trt.BuilderFlag.FP16)
+    # config.set_flag(trt.BuilderFlag.TF32)
     config.max_workspace_size = 1 * (1 << 30)
     return builder.build_engine(network, config)
 
@@ -102,12 +120,16 @@ def main():
     parser.add_argument('-samples',type=int, default=10240, help='sample size')
     parser.add_argument('-warmup', type=int, default=20, help='warm up batches')
     parser.add_argument('-ifn',    type=str, default=None, help='input h5 file')
-    parser.add_argument('-mdl',    type=str, default='models/fc16_8_4_2-sz15.onnx', help='model weights')
+    parser.add_argument('-ofn',    type=str, default=None, help='output h5 file')
+    parser.add_argument('-mdl',    type=str, default='models/fc16_8_4_2-sz15.pth', help='model weights')
 
     args, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
         print('Unrecognized argument(s): \n%s \nProgram exiting ... ... ' % '\n'.join(unparsed))
         exit(0)
+
+    ds = BraggNNDataset(args.ifn, args.samples + args.warmup * args.mbsz, args.psz)
+    mb_data_iter = DataLoader(dataset=ds, batch_size=args.mbsz, shuffle=False, num_workers=2, drop_last=True)
 
     if '.pth' in args.mdl:
         onnx_mdl = pth2onnx(args)
@@ -119,23 +141,31 @@ def main():
     inputs, outputs, bindings, stream = allocate_buffers(engine)
 
     # Contexts are used to perform inference.
+    pred, gt = [], []
     batch_time = []
     context = engine.create_execution_context()
-    for i in range(args.warmup + args.samples // args.mbsz):
-        patches = np.random.rand(args.mbsz, 1, args.psz, args.psz).astype(np.float32).ravel()
-        np.copyto(inputs[0].host, patches)
+    for i, (X_mb, y_mb) in enumerate(mb_data_iter):
+        np.copyto(inputs[0].host, X_mb.numpy().ravel())
 
         tick = time.time()
-        trt_outputs = do_inference(context, bindings=bindings, inputs=inputs, outputs=outputs, stream=stream)
+        pred_val = do_inference(context, bindings=bindings, inputs=inputs, outputs=outputs, stream=stream)
         t_e2e = 1000 * (time.time() - tick)
         if i >= args.warmup:
             batch_time.append(t_e2e)
-
-        # print("batch %d takes %.3f ms (%.3f ms / sample)" % (i, t_e2e, t_e2e/args.mbsz))
+        pred.append(pred_val[0].reshape(-1, 2))
+        gt.append(y_mb.numpy())
     
     print("[TRT] BS=%d, batches=%d, psz=%d; time per batch: min: %.3f ms, median: %.3f ms, max: %.3f ms; rate: %.2f us/sample" % (\
           args.mbsz, len(batch_time), args.psz, np.min(batch_time), np.median(batch_time), np.max(batch_time), \
           1000 * np.median(batch_time) / args.mbsz))
+
+    pred = np.concatenate(pred, axis=0) * ds.psz
+    gt   = np.concatenate(gt,   axis=0) * ds.psz
+    if args.ofn is not None:
+        import h5py
+        with h5py.File(args.ofn, 'w') as h5fd:
+            h5fd.create_dataset('prediction' ,  data=pred)
+            h5fd.create_dataset('groundtruth',  data=gt)
 
 if __name__ == '__main__':
     main()

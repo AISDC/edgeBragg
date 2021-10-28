@@ -1,15 +1,20 @@
 
 from BraggNN import BraggNN
-import torch, argparse, os, time, sys, logging
+import torch, argparse, os, time, sys, logging, h5py
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
 #import onnxruntime as rt
 
 class BraggNNDataset(Dataset):
-    def __init__(self, samples=10240, psz=11):
-        self.patches = torch.rand(samples, 1, psz, psz)
-        self.peakLoc = torch.rand(samples, 2)
-        self.psz = psz
+    def __init__(self, ifn=None, samples=10240, psz=11):
+        if ifn is None:
+            self.patches = torch.rand(samples, 1, psz, psz)
+            self.peakLoc = torch.rand(samples, 2)
+        else:
+            with h5py.File(ifn, 'r') as fd:
+                self.patches = fd['patch'][:][:,np.newaxis]
+                self.peakLoc = fd['peakLoc'][:]
+        self.psz = self.patches.shape[-1]
 
     def __getitem__(self, idx):
         return self.patches[idx], self.peakLoc[idx]
@@ -18,9 +23,8 @@ class BraggNNDataset(Dataset):
         return self.patches.shape[0]
 
 def main(args):
-    ds = BraggNNDataset(args.samples + args.warmup * args.mbsz, args.psz)
-    mb_data_iter = DataLoader(dataset=ds, batch_size=args.mbsz, shuffle=True,\
-                              num_workers=2, prefetch_factor=args.mbsz, drop_last=False, pin_memory=True)
+    ds = BraggNNDataset(args.ifn, args.samples + args.warmup * args.mbsz, args.psz)
+    mb_data_iter = DataLoader(dataset=ds, batch_size=args.mbsz, shuffle=False, drop_last=True, pin_memory=True)
 
     model = BraggNN(imgsz=ds.psz, fcsz=(16, 8, 4, 2))
     model.load_state_dict(torch.load(args.mdl, map_location=torch.device('cpu')))
@@ -49,16 +53,19 @@ def main(args):
         gt.append(y_mb.numpy())
     # time_on_inference = 1000 * (time.time() - inference_tick)
 
-    pred = np.concatenate(pred, axis=0)
-    gt   = np.concatenate(gt,   axis=0)
+    pred = np.concatenate(pred, axis=0) * ds.psz
+    gt   = np.concatenate(gt,   axis=0) * ds.psz
     print("[Torch] BS=%d, batches=%d, psz=%d; time per batch: min: %.3f ms, median: %.3f ms, max: %.3f ms; rate: %.2f us/sample" % (\
           args.mbsz, len(batch_time), args.psz, np.min(batch_time), np.median(batch_time), np.max(batch_time), \
           1000 * np.median(batch_time) / args.mbsz))
+    if args.ofn is not None:
+        with h5py.File(args.ofn, 'w') as h5fd:
+            h5fd.create_dataset('prediction' ,  data=pred)
+            h5fd.create_dataset('groundtruth',  data=gt)
 
 def main_jit(args):
     ds = BraggNNDataset(args.samples, args.psz)
-    mb_data_iter = DataLoader(dataset=ds, batch_size=args.mbsz, shuffle=True,\
-                              num_workers=2, prefetch_factor=args.mbsz, drop_last=False, pin_memory=True)
+    mb_data_iter = DataLoader(dataset=ds, batch_size=args.mbsz, shuffle=False, drop_last=True, pin_memory=True)
 
     model = BraggNN(imgsz=ds.psz, fcsz=(16, 8, 4, 2))
     model.load_state_dict(torch.load(args.mdl, map_location=torch.device('cpu')))
@@ -120,8 +127,7 @@ def main_onnx(args):
     label_name = sess.get_outputs()[0].name
 
     ds = BraggNNDataset(args.samples, args.psz)
-    mb_data_iter = DataLoader(dataset=ds, batch_size=args.mbsz, shuffle=True,\
-                              num_workers=2, prefetch_factor=args.mbsz, drop_last=False, pin_memory=True)
+    mb_data_iter = DataLoader(dataset=ds, batch_size=args.mbsz, shuffle=False, drop_last=True, pin_memory=True)
     pred, gt = [], []
     inference_tick = time.time()
     time_comp = 0
@@ -151,6 +157,7 @@ if __name__ == "__main__":
     parser.add_argument('-samples',type=int, default=10240, help='sample size')
     parser.add_argument('-warmup', type=int, default=20, help='warm up batches')
     parser.add_argument('-ifn',    type=str, default=None, help='input h5 file')
+    parser.add_argument('-ofn',    type=str, default=None, help='output h5 file')
     parser.add_argument('-mdl',    type=str, default='models/fc16_8_4_2-sz15.pth', help='model weights')
 
     args, unparsed = parser.parse_known_args()
