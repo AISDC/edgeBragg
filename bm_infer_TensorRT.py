@@ -90,8 +90,8 @@ def build_engine_onnx(model_file):
             return None
 
     config  = builder.create_builder_config()
-    config.set_flag(trt.BuilderFlag.FP16)
-    # config.set_flag(trt.BuilderFlag.TF32)
+    #config.set_flag(trt.BuilderFlag.FP16)
+    config.set_flag(trt.BuilderFlag.TF32)
     config.max_workspace_size = 1 * (1 << 30)
     return builder.build_engine(network, config)
 
