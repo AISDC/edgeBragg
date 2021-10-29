@@ -6,7 +6,7 @@ from pvaccess import PvObject
 import numpy as np 
 
 from inferBraggNN import inferBraggNN
-from frameProcess import frame_peak_patches_gcenter as frame2patch
+from frameProcess import frame_peak_patches_cv2 as frame2patch
 
 class pvaClient:
     def __init__(self, nth=1):
@@ -44,10 +44,11 @@ class pvaClient:
 
             tick = time.time()
             patches, patch_ori, big_peaks = frame2patch(frame=frame, psz=self.psz)
+            
             if patches.shape[0] > 0:
                 for _p in patches:
                     self.patch_tq.put(_p[np.newaxis])
-
+            
             self.frames_processed += 1 # has race condition
             elapse = 1000 * (time.time() - tick)
             logging.info("[%.3f] %d patches cropped from frame %d, %.3fms/frame, %d peaks are too big; "\
@@ -103,7 +104,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='edge pipeline for Bragg peak finding')
     parser.add_argument('-gpus', type=str, default="0", help='list of visiable GPUs')
     parser.add_argument('-ch',   type=str, default='13SIM1:Pva1:Image', help='pva channel name')
-    parser.add_argument('-nth',  type=int, default=4, help='number of threads for frame processes')
+    parser.add_argument('-nth',  type=int, default=1, help='number of threads for frame processes')
     parser.add_argument('-terminal',  type=int, default=0, help='non-zero to print logs to stdout')
 
     args, unparsed = parser.parse_known_args()

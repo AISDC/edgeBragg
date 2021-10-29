@@ -6,7 +6,7 @@ from pvaccess import PvObject
 import numpy as np 
 
 from BraggNN import BraggNN
-from frameProcess import frame_peak_patches_gcenter as frame2patch
+from frameProcess import frame_peak_patches_cv2 as frame2patch
 
 class pvaClient:
     def __init__(self, nth=1):
