@@ -7,6 +7,7 @@ import numpy as np
 
 from inferBraggNN import inferBraggNN
 from frameProcess import frame_peak_patches_cv2 as frame2patch
+from codecAD import CodecAD
 
 class pvaClient:
     def __init__(self, nth=1):
@@ -20,6 +21,7 @@ class pvaClient:
         self.recv_frames = None
         self.frame_tq = queue.Queue(maxsize=-1)
         self.thr_exit = 0
+        self.codecAD = CodecAD()
 
         for _ in range(nth):
             threading.Thread(target=self.frame_process, daemon=True).start()
@@ -36,10 +38,25 @@ class pvaClient:
                 continue
 
             frm_id= pv['uniqueId']
+            data_codec = pv['value'][0]['ubyteValue'] # will broken for uncoded, non-ubyte data
+            compressed = pv["compressedSize"]
+            uncompressed = pv["uncompressedSize"]
+            codec = pv["codec"]
+            dec_tick = time.time()
+            if self.codecAD.decompress(data_codec, codec, compressed, uncompressed):
+                data = self.codecAD.getData()
+                dec_time = 1000*(time.time() - dec_tick)
+                logging.info("[%.3f] frame %d has been decoded in %.2f ms, compress ratio is %.1f" % (\
+                             time.time(), frm_id, dec_time, self.codecAD.getCompressRatio()))
+            else:
+                logging.error("data is not compressed!")
+                data = pv['value'][0]['ushortValue']
+
             dims  = pv['dimension']
             rows  = dims[0]['size']
             cols  = dims[1]['size']
-            frame = pv['value'][0]['ushortValue'].reshape((rows, cols))
+            # frame = pv['value'][0]['ushortValue'].reshape((rows, cols))
+            frame = data.reshape((rows, cols))
             self.frame_tq.task_done()
 
             tick = time.time()
