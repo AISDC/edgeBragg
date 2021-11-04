@@ -9,7 +9,7 @@ def engine_build_from_onnx(onnx_mdl):
     config  = builder.create_builder_config()
     # config.set_flag(trt.BuilderFlag.FP16)
     config.set_flag(trt.BuilderFlag.TF32)
-    config.max_workspace_size = 256 * (1 << 20) # the maximum size that any layer in the network can use
+    config.max_workspace_size = 1 * (1 << 30) # the maximum size that any layer in the network can use
 
     network = builder.create_network(EXPLICIT_BATCH)
     parser  = trt.OnnxParser(network, TRT_LOGGER)

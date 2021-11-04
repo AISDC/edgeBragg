@@ -1,10 +1,5 @@
 import torch
 
-def model_init(m):
-    if isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.Linear):
-        torch.nn.init.xavier_uniform_(m.weight)
-        torch.nn.init.zeros_(m.bias)
-
 class NLB(torch.nn.Module):
     def __init__(self, in_ch, relu_a=0.01):
         self.inter_ch = torch.div(in_ch, 2, rounding_mode='floor').item()
@@ -79,3 +74,18 @@ class BraggNN(torch.nn.Module):
             _out = layer(_out)
             
         return _out
+
+def pth2onnx(pth, mbsz, psz, fcsz=(16, 8, 4, 2)):
+    model = BraggNN(imgsz=psz, fcsz=fcsz)
+
+    model.load_state_dict(torch.load(pth, map_location=torch.device('cpu')))
+    # model = model.cuda()
+    dummy_input = torch.randn(mbsz, 1, psz, psz, dtype=torch.float32, device='cpu')
+
+    input_names  = ('patch', )
+    output_names = ('ploc',  )
+
+    onnx_fn = pth.replace(".pth", ".onnx")
+    torch.onnx.export(model, dummy_input, onnx_fn, verbose=False, \
+                      input_names=input_names, output_names=output_names)
+    return onnx_fn

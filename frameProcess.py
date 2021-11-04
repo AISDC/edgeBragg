@@ -131,12 +131,10 @@ def frame_peak_patches_cv2(frame, psz, min_intensity=0):
         _pr_o = rs - _tp
         _pc_o = cs - _lp
         peak_ori.append((_pr_o, _pc_o))
-        patches.append(_patch)
+        patches.append(_patch.astype(np.float32))
 
-    # min-max norm all patches
-    patches = np.array(patches)
-    if patches.shape[0] == 0:
+    if len(patches) == 0:
         return patches, None, big_peaks
     
-    return patches.astype(np.float32), np.array(peak_ori), big_peaks
+    return patches, np.array(peak_ori), big_peaks
 
