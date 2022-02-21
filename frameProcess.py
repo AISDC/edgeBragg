@@ -83,7 +83,7 @@ def frame_peak_patches_gcenter(frame, psz, min_intensity=0):
 def frame_peak_patches_cv2(frame, psz, min_intensity=0):
     fh, fw = frame.shape
     patches, peak_ori = [], []
-    mask = (frame > 0).astype(np.uint8)
+    mask = (frame > min_intensity).astype(np.uint8)
     comps, output, stats, centroids = cv2.connectedComponentsWithStats(mask)
     
     big_peaks = 0
@@ -133,8 +133,5 @@ def frame_peak_patches_cv2(frame, psz, min_intensity=0):
         peak_ori.append((_pr_o, _pc_o))
         patches.append(_patch.astype(np.float32))
 
-    if len(patches) == 0:
-        return patches, None, big_peaks
-    
     return patches, np.array(peak_ori), big_peaks
 

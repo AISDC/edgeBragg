@@ -1,4 +1,3 @@
-from BraggNN import BraggNN
 import logging, time, threading, torch
 import numpy as np
 
@@ -18,7 +17,7 @@ class inferBraggNNtrt:
         self.trt_hin, self.trt_hout, self.trt_din, self.trt_dout, \
             self.trt_stream = mem_allocation(self.trt_engine)
         self.trt_context = self.trt_engine.create_execution_context()
-        logging.info("[%.3f] Inference engine initialization completed!" % (time.time(), ))
+        logging.info("[%.3f] TensorRT Inference engine initialization completed!" % (time.time(), ))
 
         while True:
             batch_tick = time.time()
@@ -30,18 +29,18 @@ class inferBraggNNtrt:
                              self.trt_din, self.trt_dout, self.trt_stream)
             t_comp  = 1000 * (time.time() - comp_tick)
             t_batch = 1000 * (time.time() - batch_tick)
-            logging.info("[%.3f] a batch of %d patches infered in %.3f ms (computing: %.3f ms), %d batches pending infer. %.4f, %.4f" % (\
-                         time.time(), self.mbsz, t_batch, t_comp, self.patch_tq.qsize(), pred[0], pred[1]))
+            logging.info("[%.3f] a batch of %d patches was infered in %.3f ms (computing: %.3f ms), %d batches pending infer." % (\
+                         time.time(), self.mbsz, t_batch, t_comp, self.patch_tq.qsize()))
 
 class inferBraggNNTorch:
-    def __init__(self, pth_mdl, psz, patch_tq, fcsz=(16, 8, 4, 2)):
-        self.psz = psz
+    def __init__(self, script_pth, patch_tq):
         self.patch_tq = patch_tq
         self.torch_dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.BraggNN  = BraggNN(imgsz=psz, fcsz=fcsz) # should use the same argu as it in the training.
-        self.BraggNN .load_state_dict(torch.load(pth_mdl, map_location=torch.device('cpu')))
         if torch.cuda.is_available():
-            self.BraggNN = self.BraggNN.to(self.torch_dev)
+            self.BraggNN = torch.jit.load(script_pth, map_location='cuda:0')
+        else:
+            self.BraggNN = torch.jit.load(script_pth, map_location='cpu')
+        self.psz = self.BraggNN.input_psz.item()
         logging.info("[%.3f] Inference engine initialization completed!" % (time.time(), ))
 
     def start(self, ):

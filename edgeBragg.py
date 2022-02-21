@@ -7,17 +7,17 @@ from multiprocessing import Process, Queue
 
 from inferBraggNN import inferBraggNNtrt, inferBraggNNTorch
 from frameProcess import frame_peak_patches_cv2 as frame2patch
-from BraggNN import pth2onnx
+from BraggNN import scriptpth2onnx
 
 class pvaClient:
-    def __init__(self, mbsz, psz=15, trt=False, pth='models/fc16_8_4_2-sz15.pth'):
+    def __init__(self, mbsz, psz=15, trt=False, pth='models/feb402.pth'):
         self.psz = 15
         self.patch_tq = Queue(maxsize=-1)
         if trt:
-            mdl_fn = pth2onnx(pth, mbsz, psz=psz)
-            self.infer_engine = inferBraggNNtrt(mbsz=mbsz, onnx_mdl=mdl_fn, patch_tq=self.patch_tq)
+            onnx_fn = scriptpth2onnx(pth, mbsz, psz=psz)
+            self.infer_engine = inferBraggNNtrt(mbsz=mbsz, onnx_mdl=onnx_fn, patch_tq=self.patch_tq)
         else:
-            self.infer_engine = inferBraggNNTorch(pth_mdl=pth, psz=psz,  patch_tq=self.patch_tq, fcsz=(16, 8, 4, 2))
+            self.infer_engine = inferBraggNNTorch(script_pth=pth, patch_tq=self.patch_tq)
         self.frames_processed = 0
         self.base_seq_id = None
         self.recv_frames = None
@@ -46,6 +46,7 @@ class pvaClient:
                      time.time(), uid, self.recv_frames, uid - self.base_seq_id + 1, self.frame_tq.qsize()))
 
 def frame_process(frame_tq, psz, patch_tq, mbsz):
+    logging.info(f"worker {multiprocessing.current_process().name} starting now")
     patch_list = []
     while True:
         try:
@@ -59,7 +60,7 @@ def frame_process(frame_tq, psz, patch_tq, mbsz):
             break
 
         tick = time.time()
-        patches, patch_ori, big_peaks = frame2patch(frame=frame, psz=psz)
+        patches, patch_ori, big_peaks = frame2patch(frame=frame, psz=psz, min_intensity=100)
         patch_list += patches
 
         while len(patch_list) >= mbsz:
@@ -112,9 +113,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='edge pipeline for Bragg peak finding')
     parser.add_argument('-gpus',    type=str, default="0", help='list of visiable GPUs')
     parser.add_argument('-ch',      type=str, default='13SIM1:Pva1:Image', help='pva channel name')
-    parser.add_argument('-nth',     type=int, default=6, help='number of threads for frame processes')
+    parser.add_argument('-nth',     type=int, default=1, help='number of threads for frame processes')
     parser.add_argument('-mbsz',    type=int, default=1024, help='inference batch size')
-    parser.add_argument('-verbose', type=int, default=0, help='non-zero to print logs to stdout')
+    parser.add_argument('-verbose', type=int, default=1, help='non-zero to print logs to stdout')
 
     args, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
