@@ -15,9 +15,11 @@ class pvaClient:
         self.patch_tq = Queue(maxsize=-1)
         if trt:
             onnx_fn = scriptpth2onnx(pth, mbsz, psz=psz)
-            self.infer_engine = inferBraggNNtrt(mbsz=mbsz, onnx_mdl=onnx_fn, patch_tq=self.patch_tq)
+            self.infer_engine = inferBraggNNtrt(mbsz=mbsz, onnx_mdl=onnx_fn, patch_tq=self.patch_tq, \
+                                                ofname='inferRes/BraggNN-res.h5')
         else:
-            self.infer_engine = inferBraggNNTorch(script_pth=pth, patch_tq=self.patch_tq)
+            self.infer_engine = inferBraggNNTorch(script_pth=pth, patch_tq=self.patch_tq, \
+                                                  ofname='inferRes/BraggNN-res.h5')
         self.frames_processed = 0
         self.base_seq_id = None
         self.recv_frames = None
@@ -42,12 +44,13 @@ class pvaClient:
         cols  = dims[1]['size']
         frame = pv['value'][0]['ushortValue'].reshape((rows, cols))
         self.frame_tq.put((frm_id, frame))
-        logging.info("[%.3f] received frame %d, total frame received: %d, should have received: %d; %d frames pending process" % (\
-                     time.time(), uid, self.recv_frames, uid - self.base_seq_id + 1, self.frame_tq.qsize()))
+        logging.info("received frame %d, total frame received: %d, should have received: %d; %d frames pending process" % (\
+                     uid, self.recv_frames, uid - self.base_seq_id + 1, self.frame_tq.qsize()))
 
 def frame_process(frame_tq, psz, patch_tq, mbsz):
     logging.info(f"worker {multiprocessing.current_process().name} starting now")
     patch_list = []
+    patch_ori_list = []
     while True:
         try:
             frm_id, frame = frame_tq.get()
@@ -61,16 +64,19 @@ def frame_process(frame_tq, psz, patch_tq, mbsz):
 
         tick = time.time()
         patches, patch_ori, big_peaks = frame2patch(frame=frame, psz=psz, min_intensity=100)
-        patch_list += patches
+        patch_list.extend(patches)
+        patch_ori_list.extend(patch_ori)
 
         while len(patch_list) >= mbsz:
-            patch_tq.put(np.array(patch_list[:mbsz])[:,np.newaxis])
+            batch_task = (np.array(patch_list[:mbsz])[:,np.newaxis], np.array(patch_ori_list[:mbsz]))
+            patch_tq.put(batch_task)
             patch_list = patch_list[mbsz:]
+            patch_ori_list = patch_ori_list[mbsz:]
         
         elapse = 1000 * (time.time() - tick)
-        logging.info("[%.3f] %d patches cropped from frame %d, %.3fms/frame, %d peaks are too big; "\
+        logging.info("%d patches cropped from frame %d, %.3fms/frame, %d peaks are too big; "\
                      "%d patches pending infer" % (\
-                     time.time(), patch_ori.shape[0], frm_id, elapse, big_peaks, mbsz*patch_tq.qsize()))
+                     len(patches), frm_id, elapse, big_peaks, mbsz*patch_tq.qsize()))
     logging.info(f"worker {multiprocessing.current_process().name} exiting now")
 
 def main_monitor(ch, mbsz, nth):
