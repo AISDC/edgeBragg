@@ -60,8 +60,8 @@ class pvaClient:
         logging.info("received frame %d, total frame received: %d, should have received: %d; %d frames pending process" % (\
                      uid, self.recv_frames, uid - self.base_seq_id + 1, self.frame_tq.qsize()))
 
-def frame_process(frame_tq, codecAD, psz, patch_tq, mbsz, frame_writer):
-    logging.info(f"worker {multiprocessing.current_process().name} starting now")
+def frame_process(frame_tq, codecAD, psz, patch_tq, mbsz, frame_writer=None):
+    logging.info(f"frame process worker {multiprocessing.current_process().name} starting now")
     patch_list = []
     patch_ori_list = []
     while True:
@@ -89,7 +89,7 @@ def frame_process(frame_tq, codecAD, psz, patch_tq, mbsz, frame_writer):
         frame = data.reshape((rows, cols))
 
         tick = time.time()
-        patches, patch_ori, big_peaks = frame2patch(frame=frame, angle=frm_id, psz=psz, min_intensity=100)
+        patches, patch_ori, big_peaks = frame2patch(frame=frame, angle=frm_id, psz=psz, min_intensity=60)
         patch_list.extend(patches)
         patch_ori_list.extend(patch_ori)
 
@@ -105,19 +105,23 @@ def frame_process(frame_tq, codecAD, psz, patch_tq, mbsz, frame_writer):
                      "%d patches pending infer" % (\
                      len(patch_ori), frm_id, elapse, big_peaks, mbsz*patch_tq.qsize()))
         # back-up raw frames
-        frame_writer.append2write({"angle":np.array([frm_id])[None], "frame":frame[None]})
+        if frame_writer is not None:
+            frame_writer.append2write({"angle":np.array([frm_id])[None], "frame":frame[None]})
     logging.info(f"worker {multiprocessing.current_process().name} exiting now")
 
-def main_monitor(ch, mbsz, nth):
-    c = Channel(ch)
+def main_monitor(args):
+    c = Channel(args.ch)
     c.setMonitorMaxQueueLength(-1)
 
-    client = pvaClient(mbsz=mbsz)
-    frame_writer = asyncHDFWriter('frames/frames-dump.h5')
-    frame_writer.start()
-    for _ in range(nth):
+    client = pvaClient(mbsz=args.mbsz)
+    if args.savefrm != 0:
+        frame_writer = asyncHDFWriter('frames/frames-dump.h5')
+        frame_writer.start()
+    else:
+        frame_writer = None
+    for _ in range(args.nth):
         p = Process(target=frame_process, \
-                    args=(client.frame_tq, client.codecAD, client.psz, client.patch_tq, mbsz, frame_writer))
+                    args=(client.frame_tq, client.codecAD, client.psz, client.patch_tq, args.mbsz, frame_writer))
         p.start()
 
     c.subscribe('monitor', client.monitor)
@@ -126,7 +130,7 @@ def main_monitor(ch, mbsz, nth):
     while True:
         try:
             recv_prog = client.recv_frames
-            time.sleep(600)
+            time.sleep(60)
             if recv_prog == client.recv_frames and \
                 client.frame_tq.qsize()==0 and \
                 client.patch_tq.qsize()==0:
@@ -150,6 +154,7 @@ if __name__ == '__main__':
     parser.add_argument('-ch',      type=str, default='1id-ADSim:Pva1:Image', help='pva channel name')
     parser.add_argument('-nth',     type=int, default=1, help='number of threads for frame processes')
     parser.add_argument('-mbsz',    type=int, default=1024, help='inference batch size')
+    parser.add_argument('-savefrm', type=int, default=1, help='non-zero to save raw frame')
     parser.add_argument('-verbose', type=int, default=1, help='non-zero to print logs to stdout')
 
     args, unparsed = parser.parse_known_args()
@@ -165,5 +170,5 @@ if __name__ == '__main__':
     if args.verbose != 0:
         logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
-    main_monitor(ch=args.ch, nth=args.nth, mbsz=args.mbsz)
+    main_monitor(args)
 
