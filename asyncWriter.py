@@ -8,7 +8,11 @@ class asyncHDFWriter:
         self.h5fd = None
         self.buffer = {}
         self.task_q = Queue(maxsize=-1)
-
+    '''
+    Args:
+        ddict: dict of datasets to be written to h5, data will be concatenated on
+               the first dimension
+    '''
     def append2write(self, ddict):
         self.task_q.put(ddict)
 
@@ -37,5 +41,6 @@ class asyncHDFWriter:
             else:
                 for key, data in ddict.items():
                     self.h5fd[key].resize((self.h5fd[key].shape[0] + data.shape[0]), axis=0)
+                    self.h5fd[key][-data.shape[0]:] = data
                     logging.info(f"{data.shape} samples added to '{key}' of {self.fname}, now has {self.h5fd[key].shape}")
             self.h5fd.flush()
