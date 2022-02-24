@@ -8,6 +8,7 @@ from multiprocessing import Process, Queue
 from inferBraggNN import inferBraggNNtrt, inferBraggNNTorch
 from frameProcess import frame_peak_patches_cv2 as frame2patch
 from BraggNN import scriptpth2onnx
+from asyncWriter import asyncHDFWriter
 
 class pvaClient:
     def __init__(self, mbsz, psz=15, trt=False, pth='models/feb402.pth'):
@@ -38,6 +39,8 @@ class pvaClient:
         self.recv_frames += 1
         
         # I had problem to pickle PvObject, so just unpack and push to queue
+        print(pv['codec'])
+        exit()
         frm_id= pv['uniqueId']
         dims  = pv['dimension']
         rows  = dims[0]['size']
@@ -47,7 +50,7 @@ class pvaClient:
         logging.info("received frame %d, total frame received: %d, should have received: %d; %d frames pending process" % (\
                      uid, self.recv_frames, uid - self.base_seq_id + 1, self.frame_tq.qsize()))
 
-def frame_process(frame_tq, psz, patch_tq, mbsz):
+def frame_process(frame_tq, psz, patch_tq, mbsz, frame_writer):
     logging.info(f"worker {multiprocessing.current_process().name} starting now")
     patch_list = []
     patch_ori_list = []
@@ -63,12 +66,13 @@ def frame_process(frame_tq, psz, patch_tq, mbsz):
             break
 
         tick = time.time()
-        patches, patch_ori, big_peaks = frame2patch(frame=frame, psz=psz, min_intensity=100)
+        patches, patch_ori, big_peaks = frame2patch(frame=frame, psz=psz, angle=frm_id, min_intensity=100)
         patch_list.extend(patches)
         patch_ori_list.extend(patch_ori)
 
         while len(patch_list) >= mbsz:
-            batch_task = (np.array(patch_list[:mbsz])[:,np.newaxis], np.array(patch_ori_list[:mbsz]))
+            batch_task = (np.array(patch_list[:mbsz])[:,np.newaxis], \
+                          np.array(patch_ori_list[:mbsz]).astype(np.float32))
             patch_tq.put(batch_task)
             patch_list = patch_list[mbsz:]
             patch_ori_list = patch_ori_list[mbsz:]
@@ -77,6 +81,9 @@ def frame_process(frame_tq, psz, patch_tq, mbsz):
         logging.info("%d patches cropped from frame %d, %.3fms/frame, %d peaks are too big; "\
                      "%d patches pending infer" % (\
                      len(patches), frm_id, elapse, big_peaks, mbsz*patch_tq.qsize()))
+        # back-up raw frames
+        frame_writer.append2write({"angle":np.array([frm_id])[None], "frame":frame[None]})
+
     logging.info(f"worker {multiprocessing.current_process().name} exiting now")
 
 def main_monitor(ch, mbsz, nth):
@@ -85,9 +92,11 @@ def main_monitor(ch, mbsz, nth):
 
     client = pvaClient(mbsz=mbsz)
 
+    frame_writer = asyncHDFWriter('frames/frames-dump.h5')
+    frame_writer.start()
     for _ in range(nth):
         p = Process(target=frame_process, \
-                    args=(client.frame_tq, client.psz, client.patch_tq, mbsz))
+                    args=(client.frame_tq, client.psz, client.patch_tq, mbsz, frame_writer))
         p.start()
 
     c.subscribe('monitor', client.monitor)
@@ -118,7 +127,7 @@ def main_monitor(ch, mbsz, nth):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='edge pipeline for Bragg peak finding')
     parser.add_argument('-gpus',    type=str, default="0", help='list of visiable GPUs')
-    parser.add_argument('-ch',      type=str, default='13SIM1:Pva1:Image', help='pva channel name')
+    parser.add_argument('-ch',      type=str, default='1id-ADSim2:Pva1:Image', help='pva channel name')
     parser.add_argument('-nth',     type=int, default=1, help='number of threads for frame processes')
     parser.add_argument('-mbsz',    type=int, default=1024, help='inference batch size')
     parser.add_argument('-verbose', type=int, default=1, help='non-zero to print logs to stdout')

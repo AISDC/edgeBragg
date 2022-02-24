@@ -80,7 +80,7 @@ def frame_peak_patches_gcenter(frame, psz, min_intensity=0):
     return patches.astype(np.float32), np.array(peak_ori), big_peaks
 
 # cv2 based geometric center connected component as center for crop
-def frame_peak_patches_cv2(frame, psz, min_intensity=0):
+def frame_peak_patches_cv2(frame, psz, angle, min_intensity=0):
     fh, fw = frame.shape
     patches, peak_ori = [], []
     mask = (frame > min_intensity).astype(np.uint8)
@@ -130,7 +130,7 @@ def frame_peak_patches_cv2(frame, psz, min_intensity=0):
         
         _pr_o = rs - _tp
         _pc_o = cs - _lp
-        peak_ori.append((_pr_o, _pc_o))
+        peak_ori.append((angle, _pr_o, _pc_o))
         patches.append(_patch.astype(np.float32))
 
     return patches, peak_ori, big_peaks

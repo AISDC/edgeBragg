@@ -1,12 +1,13 @@
 import logging, time, threading, torch
 import numpy as np
-from resWriter import resWriter
+from asyncWriter import asyncHDFWriter
 
 class inferBraggNNtrt:
     def __init__(self, mbsz, onnx_mdl, patch_tq, ofname):
         self.patch_tq = patch_tq
         self.mbsz = mbsz
         self.onnx_mdl = onnx_mdl
+        self.writer = asyncHDFWriter(fname=ofname)
 
     def start(self, ):
         threading.Thread(target=self.batch_infer, daemon=True).start()
@@ -19,7 +20,6 @@ class inferBraggNNtrt:
         self.trt_hin, self.trt_hout, self.trt_din, self.trt_dout, \
             self.trt_stream = mem_allocation(self.trt_engine)
         self.trt_context = self.trt_engine.create_execution_context()
-        self.writer = resWriter(fname=ofname, batch_sz=4094)
         logging.info("TensorRT Inference engine initialization completed!")
 
         while True:
@@ -29,13 +29,14 @@ class inferBraggNNtrt:
             comp_tick = time.time()
             np.copyto(self.trt_hin, in_mb.ravel())
             pred = inference(self.trt_context, self.trt_hin, self.trt_hout, \
-                             self.trt_din, self.trt_dout, self.trt_stream)
+                             self.trt_din, self.trt_dout, self.trt_stream).reshape(-1, 2)
             t_comp  = 1000 * (time.time() - comp_tick)
             t_batch = 1000 * (time.time() - batch_tick)
             logging.info("A batch of %d patches was infered in %.3f ms (computing: %.3f ms), %d batches pending infer." % (\
                          self.mbsz, t_batch, t_comp, self.patch_tq.qsize()))
             psz = in_mb.shape[-1]
-            self.writer.append2write(pred*psz + ori_mb, in_mb)
+            ori_mb[:, 1:] += (pred * psz).astype(np.float32)
+            self.writer.append2write({"ploc":ori_mb, "patches":in_mb})
 
 class inferBraggNNTorch:
     def __init__(self, script_pth, patch_tq, ofname):
@@ -49,7 +50,7 @@ class inferBraggNNTorch:
         # self.BraggNN = torch.jit.freeze(self.BraggNN.eval())
         # self.BraggNN = torch.jit.optimize_for_inference(self.BraggNN) # still in PyTroch prototype
 
-        self.writer = resWriter(fname=ofname, batch_sz=4094)
+        self.writer = asyncHDFWriter(fname=ofname)
         logging.info("PyTorch Inference engine initialization completed!")
 
     def start(self, ):
@@ -69,4 +70,5 @@ class inferBraggNNTorch:
             logging.info("A batch of %d patches infered in %.3f ms (computing: %.3f ms), %d batches pending infer." % (\
                          pred.shape[0], t_batch, t_comp, self.patch_tq.qsize()))
             psz = in_mb.shape[-1]
-            self.writer.append2write(pred*psz + ori_mb, in_mb)
+            ori_mb[:, 1:] += (pred * psz).astype(np.float32)
+            self.writer.append2write({"ploc":ori_mb, "patches":in_mb})

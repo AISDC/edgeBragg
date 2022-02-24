@@ -10,6 +10,7 @@ from inferBraggNN import inferBraggNNtrt, inferBraggNNTorch
 from frameProcess import frame_peak_patches_cv2 as frame2patch
 from codecAD import CodecAD
 from BraggNN import scriptpth2onnx
+from asyncWriter import asyncHDFWriter
 
 class pvaClient:
     def __init__(self, mbsz, psz=15, trt=False, pth='models/feb402.pth'):
@@ -41,19 +42,25 @@ class pvaClient:
         self.recv_frames += 1
         
         # I had problem to pickle PvObject, so just unpack and push to queue
-        frm_id= pv['uniqueId']
-        data_codec = pv['value'][0]['ubyteValue'] # will broken for uncoded, non-ubyte data
-        compressed = pv["compressedSize"]
-        uncompressed = pv["uncompressedSize"]
-        codec = pv["codec"]
+        frm_id = pv['uniqueId']
         dims  = pv['dimension']
         rows  = dims[0]['size']
         cols  = dims[1]['size']
+        codec = pv["codec"]
+        if len(codec['name']) > 0:
+            data_codec = pv['value'][0]['ubyteValue'] # will broken for uncoded, non-ubyte data
+            compressed = pv["compressedSize"]
+            uncompressed = pv["uncompressedSize"]
+        else:
+            compressed   = None
+            uncompressed = None
+            data_codec   = pv['value'][0]['ushortValue']
+
         self.frame_tq.put((frm_id, data_codec, compressed, uncompressed, codec, rows, cols))
         logging.info("received frame %d, total frame received: %d, should have received: %d; %d frames pending process" % (\
                      uid, self.recv_frames, uid - self.base_seq_id + 1, self.frame_tq.qsize()))
 
-def frame_process(frame_tq, codecAD, psz, patch_tq, mbsz):
+def frame_process(frame_tq, codecAD, psz, patch_tq, mbsz, frame_writer):
     logging.info(f"worker {multiprocessing.current_process().name} starting now")
     patch_list = []
     patch_ori_list = []
@@ -70,24 +77,25 @@ def frame_process(frame_tq, codecAD, psz, patch_tq, mbsz):
             break
 
         dec_tick = time.time()
-        if codecAD.decompress(data_codec, codec, compressed, uncompressed):
+        if compressed is None:
+            data = data_codec 
+        else:
+            codecAD.decompress(data_codec, codec, compressed, uncompressed)
             data = codecAD.getData()
             dec_time = 1000 * (time.time() - dec_tick)
             logging.info("frame %d has been decoded in %.2f ms, compress ratio is %.1f" % (\
                          frm_id, dec_time, codecAD.getCompressRatio()))
-        else:
-            logging.error("data is not compressed!")
-            data = data_codec
 
         frame = data.reshape((rows, cols))
 
         tick = time.time()
-        patches, patch_ori, big_peaks = frame2patch(frame=frame, psz=psz, min_intensity=100)
+        patches, patch_ori, big_peaks = frame2patch(frame=frame, angle=frm_id, psz=psz, min_intensity=100)
         patch_list.extend(patches)
         patch_ori_list.extend(patch_ori)
 
         while len(patch_list) >= mbsz:
-            batch_task = (np.array(patch_list[:mbsz])[:,np.newaxis], np.array(patch_ori_list[:mbsz]))
+            batch_task = (np.array(patch_list[:mbsz])[:,np.newaxis], \
+                          np.array(patch_ori_list[:mbsz]).astype(np.float32))
             patch_tq.put(batch_task)
             patch_list = patch_list[mbsz:]
             patch_ori_list = patch_ori_list[mbsz:]
@@ -96,6 +104,8 @@ def frame_process(frame_tq, codecAD, psz, patch_tq, mbsz):
         logging.info("%d patches cropped from frame %d, %.3fms/frame, %d peaks are too big; "\
                      "%d patches pending infer" % (\
                      len(patch_ori), frm_id, elapse, big_peaks, mbsz*patch_tq.qsize()))
+        # back-up raw frames
+        frame_writer.append2write({"angle":np.array([frm_id])[None], "frame":frame[None]})
     logging.info(f"worker {multiprocessing.current_process().name} exiting now")
 
 def main_monitor(ch, mbsz, nth):
@@ -103,10 +113,11 @@ def main_monitor(ch, mbsz, nth):
     c.setMonitorMaxQueueLength(-1)
 
     client = pvaClient(mbsz=mbsz)
-
+    frame_writer = asyncHDFWriter('frames/frames-dump.h5')
+    frame_writer.start()
     for _ in range(nth):
         p = Process(target=frame_process, \
-                    args=(client.frame_tq, client.codecAD, client.psz, client.patch_tq, mbsz))
+                    args=(client.frame_tq, client.codecAD, client.psz, client.patch_tq, mbsz, frame_writer))
         p.start()
 
     c.subscribe('monitor', client.monitor)
@@ -136,7 +147,7 @@ def main_monitor(ch, mbsz, nth):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='edge pipeline for Bragg peak finding')
     parser.add_argument('-gpus',    type=str, default="0", help='list of visiable GPUs')
-    parser.add_argument('-ch',      type=str, default='13SIM1:Pva1:Image', help='pva channel name')
+    parser.add_argument('-ch',      type=str, default='1id-ADSim:Pva1:Image', help='pva channel name')
     parser.add_argument('-nth',     type=int, default=1, help='number of threads for frame processes')
     parser.add_argument('-mbsz',    type=int, default=1024, help='inference batch size')
     parser.add_argument('-verbose', type=int, default=1, help='non-zero to print logs to stdout')
