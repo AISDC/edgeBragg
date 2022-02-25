@@ -23,11 +23,10 @@ class inferBraggNNtrt:
         logging.info("TensorRT Inference engine initialization completed!")
 
         while True:
-            batch_tick = time.time()
             in_mb, ori_mb = self.patch_tq.get()
-
-            comp_tick = time.time()
+            batch_tick = time.time()
             np.copyto(self.trt_hin, in_mb.ravel())
+            comp_tick  = time.time()
             pred = inference(self.trt_context, self.trt_hin, self.trt_hout, \
                              self.trt_din, self.trt_dout, self.trt_stream).reshape(-1, 2)
             t_comp  = 1000 * (time.time() - comp_tick)
@@ -59,8 +58,8 @@ class inferBraggNNTorch:
 
     def batch_infer(self, ):
         while True:
-            batch_tick = time.time()
             in_mb, ori_mb= self.patch_tq.get()
+            batch_tick = time.time()
             input_tensor = torch.from_numpy(in_mb)
             comp_tick = time.time()
             with torch.no_grad():

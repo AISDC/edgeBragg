@@ -1,6 +1,7 @@
 from skimage import measure
 import numpy as np
-import cv2
+import cv2, logging, multiprocessing, time
+from codecAD import CodecAD
 
 def is_edge_zero(a):
     assert a.ndim == 2, 'must be 2 dimension, got %s' % a.ndim
@@ -135,3 +136,55 @@ def frame_peak_patches_cv2(frame, psz, angle, min_intensity=0):
 
     return patches, peak_ori, big_peaks
 
+def frame_process_worker_func(frame_tq, psz, patch_tq, mbsz, offset_recover, min_intensity, frame_writer=None):
+    logging.info(f"frame process worker {multiprocessing.current_process().name} starting now")
+    codecAD = CodecAD()
+    patch_list = []
+    patch_ori_list = []
+    while True:
+        try:
+            frm_id, data_codec, compressed, uncompressed, codec, rows, cols = frame_tq.get()
+        except queue.Empty:
+            continue
+        except:
+            logging.error("Something else of the Queue went wrong")
+            continue
+
+        if frm_id < 0:
+            break
+
+        dec_tick = time.time()
+        if compressed is None:
+            data = data_codec 
+        else:
+            codecAD.decompress(data_codec, codec, compressed, uncompressed)
+            data = codecAD.getData()
+            dec_time = 1000 * (time.time() - dec_tick)
+            logging.info(f"frame %d has been decoded in %.2f ms using {codec['name']}, compress ratio is %.1f" % (\
+                         frm_id, dec_time, codecAD.getCompressRatio()))
+
+        frame = data.reshape((rows, cols))
+        if offset_recover > 0:
+            frame[frame > 0] += offset_recover
+
+        tick = time.time()
+        patches, patch_ori, big_peaks = frame_peak_patches_cv2(frame=frame, angle=frm_id, \
+                                                               psz=psz, min_intensity=min_intensity)
+        patch_list.extend(patches)
+        patch_ori_list.extend(patch_ori)
+
+        while len(patch_list) >= mbsz:
+            batch_task = (np.array(patch_list[:mbsz])[:,np.newaxis], \
+                          np.array(patch_ori_list[:mbsz]).astype(np.float32))
+            patch_tq.put(batch_task)
+            patch_list = patch_list[mbsz:]
+            patch_ori_list = patch_ori_list[mbsz:]
+        
+        elapse = 1000 * (time.time() - tick)
+        logging.info("%d patches cropped from frame %d, %.3fms/frame, %d peaks are too big; "\
+                     "%d patches pending infer" % (\
+                     len(patch_ori), frm_id, elapse, big_peaks, mbsz*patch_tq.qsize()))
+        # back-up raw frames
+        if frame_writer is not None:
+            frame_writer.append2write({"angle":np.array([frm_id])[None], "frame":frame[None]})
+    logging.info(f"worker {multiprocessing.current_process().name} exiting now")
