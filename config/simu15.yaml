@@ -1,20 +1,21 @@
 
 model:
   psz: 15
-  model_fname: "models/feb402.pth"
+  model_fname: "models/feb402psz15.pth"
 
 frame:
   min_intensity: 100
   offset_recover: 0 # a[a>0] += offset_recover
   pvkey: "1id-ADSim2:Pva1:Image"
   nproc: 2 # number of processes for frame preproc
-
+  max_radius: 1000
+  
 infer:
   tensorrt: False
   mbsz: 1024 
 
 output:
-  frame2file: "/net/wolf/data/users/zhengchun.liu/frames-dump.h5"
+  frame2file: "/net/wolf/data/users/zhengchun.liu/frames.h5"
   peaks2file: "/net/wolf/data/users/zhengchun.liu/peaks.h5"
 
 

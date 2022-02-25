@@ -45,7 +45,8 @@ def main(params):
     for _ in range(params['frame']['nproc']):
         p = Process(target=frame_process_worker_func, \
                     args=(tq_frame, params['model']['psz'], tq_patch, params['infer']['mbsz'], \
-                          params['frame']['offset_recover'], params['frame']['min_intensity'], frame_writer))
+                          params['frame']['offset_recover'], params['frame']['min_intensity'], \
+                          params['frame']['max_radius'], frame_writer))
         p.start()
 
     c.subscribe('monitor', pva_client.monitor)

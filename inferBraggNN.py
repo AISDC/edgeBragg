@@ -24,7 +24,7 @@ class inferBraggNNtrt:
         while True:
             in_mb, ori_mb = self.tq_patch.get()
             batch_tick = time.time()
-            np.copyto(self.trt_hin, in_mb.ravel())
+            np.copyto(self.trt_hin, in_mb.astype(np.float32).ravel())
             comp_tick  = time.time()
             pred = inference(self.trt_context, self.trt_hin, self.trt_hout, \
                              self.trt_din, self.trt_dout, self.trt_stream).reshape(-1, 2)
@@ -58,7 +58,7 @@ class inferBraggNNTorch:
         while True:
             in_mb, ori_mb= self.tq_patch.get()
             batch_tick = time.time()
-            input_tensor = torch.from_numpy(in_mb)
+            input_tensor = torch.from_numpy(in_mb.astype(np.float32))
             comp_tick = time.time()
             with torch.no_grad():
                 pred = self.BraggNN.forward(input_tensor.to(self.torch_dev)).cpu().numpy()
