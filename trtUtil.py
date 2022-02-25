@@ -1,6 +1,6 @@
-
 import pycuda.driver as cuda
 import tensorrt as trt
+import logging, torch
 
 def engine_build_from_onnx(onnx_mdl):
     EXPLICIT_BATCH = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
@@ -56,3 +56,17 @@ def inference(context, h_input, h_output, d_input, d_output, stream):
     # Return the host
     return h_output
 
+def scriptpth2onnx(pth, mbsz, psz):
+    model = torch.jit.load(pth, map_location='cpu')
+    if psz != model.input_psz.item():
+        logging.error(f"The provided torchScript model is trained for patch size of {model.input_psz.item()}!")
+
+    dummy_input = torch.randn(mbsz, 1, psz, psz, dtype=torch.float32, device='cpu')
+
+    input_names  = ('patch', )
+    output_names = ('ploc',  )
+
+    onnx_fn = pth.replace(".pth", ".onnx")
+    torch.onnx.export(model, dummy_input, onnx_fn, verbose=False, \
+                      input_names=input_names, output_names=output_names)
+    return onnx_fn

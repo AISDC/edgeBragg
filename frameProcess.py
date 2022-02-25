@@ -136,6 +136,7 @@ def frame_peak_patches_cv2(frame, psz, angle, min_intensity=0):
 
     return patches, peak_ori, big_peaks
 
+
 def frame_process_worker_func(frame_tq, psz, patch_tq, mbsz, offset_recover, min_intensity, frame_writer=None):
     logging.info(f"frame process worker {multiprocessing.current_process().name} starting now")
     codecAD = CodecAD()

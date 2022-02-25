@@ -5,7 +5,7 @@ model:
 
 frame:
   min_intensity: 100
-  offset_recover: 0 # a[a>0] += 
+  offset_recover: 0 # a[a>0] += offset_recover
   pvkey: "1id-ADSim2:Pva1:Image"
   nproc: 2 # number of processes for frame preproc
 

@@ -14,7 +14,7 @@ infer:
   mbsz: 1024 
 
 output:
-  frame2file: ""
+  frame2file: "/net/wolf/data/users/zhengchun.liu/frames.h5"
   peaks2file: "/net/wolf/data/users/zhengchun.liu/peaks.h5"
 
 
