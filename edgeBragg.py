@@ -2,7 +2,6 @@
 import time, queue, sys, os, multiprocessing
 import argparse, logging
 from pvaccess import Channel
-# from pvaccess import PvObject
 import numpy as np 
 from multiprocessing import Process, Queue
 
@@ -14,7 +13,7 @@ from asyncWriter import asyncHDFWriter
 
 class pvaClient:
     def __init__(self, mbsz, psz=15, trt=False, pth='models/feb402.pth'):
-        self.psz = 15
+        self.psz = psz
         self.patch_tq = Queue(maxsize=-1)
         if trt:
             onnx_fn = scriptpth2onnx(pth, mbsz, psz=psz)
@@ -31,7 +30,7 @@ class pvaClient:
         self.infer_engine.start()
         
     def monitor(self, pv):
-        uid = pv['uniqueId'] # pvaccess.pvaccess.PvObject
+        uid = pv['uniqueId']
 
         # ignore the 1st empty frame when use sv simulator
         if self.recv_frames is None:
@@ -41,14 +40,14 @@ class pvaClient:
         if self.base_seq_id is None: self.base_seq_id = uid
         self.recv_frames += 1
         
-        # I had problem to pickle PvObject, so just unpack and push to queue
+        # problem to pickle PvObject, so just unpack and push to queue
         frm_id = pv['uniqueId']
         dims  = pv['dimension']
         rows  = dims[0]['size']
         cols  = dims[1]['size']
         codec = pv["codec"]
         if len(codec['name']) > 0:
-            data_codec = pv['value'][0]['ubyteValue'] # will broken for uncoded, non-ubyte data
+            data_codec = pv['value'][0]['ubyteValue']
             compressed = pv["compressedSize"]
             uncompressed = pv["uncompressedSize"]
         else:
@@ -83,13 +82,15 @@ def frame_process(frame_tq, codecAD, psz, patch_tq, mbsz, frame_writer=None):
             codecAD.decompress(data_codec, codec, compressed, uncompressed)
             data = codecAD.getData()
             dec_time = 1000 * (time.time() - dec_tick)
-            logging.info("frame %d has been decoded in %.2f ms, compress ratio is %.1f" % (\
+            logging.info(f"frame %d has been decoded in %.2f ms using {codec['name']}, compress ratio is %.1f" % (\
                          frm_id, dec_time, codecAD.getCompressRatio()))
 
         frame = data.reshape((rows, cols))
+        # a temp solution to recover AD preproc
+        # frame[frame > 0] += 30
 
         tick = time.time()
-        patches, patch_ori, big_peaks = frame2patch(frame=frame, angle=frm_id, psz=psz, min_intensity=60)
+        patches, patch_ori, big_peaks = frame2patch(frame=frame, angle=frm_id, psz=psz, min_intensity=100)
         patch_list.extend(patches)
         patch_ori_list.extend(patch_ori)
 
@@ -113,15 +114,15 @@ def main_monitor(args):
     c = Channel(args.ch)
     c.setMonitorMaxQueueLength(-1)
 
-    client = pvaClient(mbsz=args.mbsz)
+    client = pvaClient(mbsz=args.mbsz, psz=args.psz)
     if args.savefrm != 0:
-        frame_writer = asyncHDFWriter('frames/frames-dump.h5')
+        frame_writer = asyncHDFWriter('/net/wolf/data/users/zhengchun.liu/frames/frames-dump.h5')
         frame_writer.start()
     else:
         frame_writer = None
     for _ in range(args.nth):
         p = Process(target=frame_process, \
-                    args=(client.frame_tq, client.codecAD, client.psz, client.patch_tq, args.mbsz, frame_writer))
+                    args=(client.frame_tq, client.codecAD, args.psz, client.patch_tq, args.mbsz, frame_writer))
         p.start()
 
     c.subscribe('monitor', client.monitor)
@@ -154,6 +155,7 @@ if __name__ == '__main__':
     parser.add_argument('-ch',      type=str, default='1id-ADSim:Pva1:Image', help='pva channel name')
     parser.add_argument('-nth',     type=int, default=1, help='number of threads for frame processes')
     parser.add_argument('-mbsz',    type=int, default=1024, help='inference batch size')
+    parser.add_argument('-psz',     type=int, default=11, help='patch size')
     parser.add_argument('-savefrm', type=int, default=1, help='non-zero to save raw frame')
     parser.add_argument('-verbose', type=int, default=1, help='non-zero to print logs to stdout')
 
