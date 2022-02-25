@@ -1,0 +1,21 @@
+
+model:
+  psz: 11
+  model_fname: "models/feb402psz11.pth"
+
+frame:
+  min_intensity: 100
+  offset_recover: 0 # a[a>0] += 
+  pvkey: "1id-ADSim2:Pva1:Image"
+  nproc: 2 # number of processes for frame preproc
+
+infer:
+  tensorrt: False
+  mbsz: 1024 
+
+output:
+  frame2file: ""
+  peaks2file: "/net/wolf/data/users/zhengchun.liu/peaks.h5"
+
+
+

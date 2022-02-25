@@ -1,6 +1,6 @@
 
 import time, queue, sys, os, multiprocessing
-import argparse, logging
+import argparse, logging, yaml
 from pvaccess import Channel
 import numpy as np 
 from multiprocessing import Process, Queue
@@ -12,16 +12,16 @@ from BraggNN import scriptpth2onnx
 from asyncWriter import asyncHDFWriter
 
 class pvaClient:
-    def __init__(self, mbsz, psz=15, trt=False, pth='models/feb402.pth'):
+    def __init__(self, mbsz, psz, trt, pth, ofname):
         self.psz = psz
         self.patch_tq = Queue(maxsize=-1)
         if trt:
             onnx_fn = scriptpth2onnx(pth, mbsz, psz=psz)
             self.infer_engine = inferBraggNNtrt(mbsz=mbsz, onnx_mdl=onnx_fn, patch_tq=self.patch_tq, \
-                                                ofname='inferRes/BraggNN-res.h5')
+                                                ofname=ofname)
         else:
             self.infer_engine = inferBraggNNTorch(script_pth=pth, patch_tq=self.patch_tq, \
-                                                  ofname='inferRes/BraggNN-res.h5')
+                                                  ofname=ofname)
         self.frames_processed = 0
         self.base_seq_id = None
         self.recv_frames = None
@@ -110,19 +110,23 @@ def frame_process(frame_tq, codecAD, psz, patch_tq, mbsz, frame_writer=None):
             frame_writer.append2write({"angle":np.array([frm_id])[None], "frame":frame[None]})
     logging.info(f"worker {multiprocessing.current_process().name} exiting now")
 
-def main_monitor(args):
-    c = Channel(args.ch)
+def main_monitor(params):
+    logging.info(f"listen on {params['frame']['pvkey']} for frames")
+    c = Channel(params['frame']['pvkey'])
     c.setMonitorMaxQueueLength(-1)
 
-    client = pvaClient(mbsz=args.mbsz, psz=args.psz)
-    if args.savefrm != 0:
-        frame_writer = asyncHDFWriter('/net/wolf/data/users/zhengchun.liu/frames/frames-dump.h5')
+    client = pvaClient(mbsz=params['infer']['mbsz'], psz=params['model']['psz'],\
+                       trt=params['infer']['tensorrt'], pth=params['model']['model_fname'],\
+                       ofname=params['output']['peaks2file'])
+    if len(params['output']['frame2file']) > 0:
+        frame_writer = asyncHDFWriter(params['output']['frame2file'])
         frame_writer.start()
     else:
         frame_writer = None
-    for _ in range(args.nth):
+    for _ in range(params['frame']['nproc']):
         p = Process(target=frame_process, \
-                    args=(client.frame_tq, client.codecAD, args.psz, client.patch_tq, args.mbsz, frame_writer))
+                    args=(client.frame_tq, client.codecAD, params['model']['psz'],\
+                          client.patch_tq, params['infer']['mbsz'], frame_writer))
         p.start()
 
     c.subscribe('monitor', client.monitor)
@@ -136,11 +140,11 @@ def main_monitor(args):
                 client.frame_tq.qsize()==0 and \
                 client.patch_tq.qsize()==0:
                 logging.info("program exits because of silence")
-                for _ in range(nth):
+                for _ in range(params['frame']['nproc']):
                     client.frame_tq.put((-1, None, None, None, None, None, None))
                 break
         except KeyboardInterrupt:
-            for _ in range(nth):
+            for _ in range(params['frame']['nproc']):
                 client.frame_tq.put((-1, None, None, None, None, None, None))
             logging.info("program exits because KeyboardInterrupt")
             break
@@ -152,11 +156,7 @@ def main_monitor(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='edge pipeline for Bragg peak finding')
     parser.add_argument('-gpus',    type=str, default="0", help='list of visiable GPUs')
-    parser.add_argument('-ch',      type=str, default='1id-ADSim:Pva1:Image', help='pva channel name')
-    parser.add_argument('-nth',     type=int, default=1, help='number of threads for frame processes')
-    parser.add_argument('-mbsz',    type=int, default=1024, help='inference batch size')
-    parser.add_argument('-psz',     type=int, default=11, help='patch size')
-    parser.add_argument('-savefrm', type=int, default=1, help='non-zero to save raw frame')
+    parser.add_argument('-cfg',     type=str, default=None, help='yaml config file')
     parser.add_argument('-verbose', type=int, default=1, help='non-zero to print logs to stdout')
 
     args, unparsed = parser.parse_known_args()
@@ -167,10 +167,12 @@ if __name__ == '__main__':
     if len(args.gpus) > 0:
         os.environ['CUDA_VISIBLE_DEVICES'] = args.gpus
 
+    params = yaml.load(open(args.cfg, 'r'), Loader=yaml.CLoader)
+
     logging.basicConfig(filename='edgeBragg.log', level=logging.DEBUG,\
                         format='%(asctime)s %(levelname)-8s %(message)s',)
     if args.verbose != 0:
         logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
-    main_monitor(args)
+    main_monitor(params)
 
