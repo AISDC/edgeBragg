@@ -151,13 +151,12 @@ def frame_process_worker_func(frame_tq, psz, patch_tq, mbsz, offset_recover, min
             logging.error("Something else of the Queue went wrong")
             continue
 
-        if frm_id < 0:
-            break
+        if frm_id < 0: break
 
-        dec_tick = time.time()
         if compressed is None:
             data = data_codec 
         else:
+            dec_tick = time.time()
             codecAD.decompress(data_codec, codec, compressed, uncompressed)
             data = codecAD.getData()
             dec_time = 1000 * (time.time() - dec_tick)
@@ -165,7 +164,7 @@ def frame_process_worker_func(frame_tq, psz, patch_tq, mbsz, offset_recover, min
                          frm_id, dec_time, codecAD.getCompressRatio()))
 
         frame = data.reshape((rows, cols))
-        if offset_recover > 0:
+        if offset_recover != 0:
             frame[frame > 0] += offset_recover
 
         tick = time.time()

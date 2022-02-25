@@ -8,21 +8,21 @@ class pvaClient:
         self.recv_frames = 0
         self.tq_frame = tq_frame
 
+    # this function will be triggered to call by pva when there is a new frame
     def monitor(self, pv):
         uid = pv['uniqueId']
 
         if self.base_seq_id is None: self.base_seq_id = uid
         self.recv_frames += 1
-        
-        # problem to pickle PvObject, so just unpack and push to queue
+
         frm_id= pv['uniqueId']
         dims  = pv['dimension']
         rows  = dims[0]['size']
         cols  = dims[1]['size']
         codec = pv["codec"]
         if len(codec['name']) > 0:
-            data_codec = pv['value'][0]['ubyteValue']
-            compressed = pv["compressedSize"]
+            data_codec   = pv['value'][0]['ubyteValue']
+            compressed   = pv["compressedSize"]
             uncompressed = pv["uncompressedSize"]
         else:
             compressed   = None

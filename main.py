@@ -4,11 +4,11 @@ from pvaccess import Channel
 import numpy as np 
 from multiprocessing import Process, Queue
 
+from inferBraggNN import inferBraggNNtrt, inferBraggNNTorch
 from frameProcess import frame_process_worker_func
 from asyncWriter import asyncHDFWriter
 from pvaClient import pvaClient
 from trtUtil import scriptpth2onnx
-from inferBraggNN import inferBraggNNtrt, inferBraggNNTorch
 
 def main(params):
     logging.info(f"listen on {params['frame']['pvkey']} for frames")
@@ -41,13 +41,11 @@ def main(params):
         infer_engine = inferBraggNNTorch(script_pth=params['model']['model_fname'], tq_patch=tq_patch, peak_writer=peak_writer)
     infer_engine.start()
 
-    # start a pool of process to digest frame from tq_frame and push patches into tq_patch
+    # start a pool of processes to digest frame from tq_frame and push patches into tq_patch
     for _ in range(params['frame']['nproc']):
         p = Process(target=frame_process_worker_func, \
-                    args=(tq_frame, params['model']['psz'],\
-                          tq_patch, params['infer']['mbsz'], \
-                          params['frame']['offset_recover'], \
-                          params['frame']['min_intensity'], frame_writer))
+                    args=(tq_frame, params['model']['psz'], tq_patch, params['infer']['mbsz'], \
+                          params['frame']['offset_recover'], params['frame']['min_intensity'], frame_writer))
         p.start()
 
     c.subscribe('monitor', pva_client.monitor)
@@ -58,17 +56,15 @@ def main(params):
         try:
             recv_prog = pva_client.recv_frames
             time.sleep(60)
-            if recv_prog == pva_client.recv_frames and \
-                pva_client.frame_tq.qsize()==0 and \
-                pva_client.patch_tq.qsize()==0:
-                logging.info("program exits because of silence")
+            if recv_prog == pva_client.recv_frames and pva_client.frame_tq.qsize()==0 and pva_client.patch_tq.qsize()==0:
+                logging.warning("program exits because of silence")
                 for _ in range(params['frame']['nproc']):
                     pva_client.frame_tq.put((-1, None, None, None, None, None, None))
                 break
         except KeyboardInterrupt:
             for _ in range(params['frame']['nproc']):
                 pva_client.frame_tq.put((-1, None, None, None, None, None, None))
-            logging.info("program exits because KeyboardInterrupt")
+            logging.critical("program exits because KeyboardInterrupt")
             break
         
     time.sleep(1) # give processes seconds to exit

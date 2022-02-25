@@ -1,4 +1,4 @@
-# codecAD.py
+
 """
 codecAD provides python access to the codec support provided by areaDetector/ADSupport
 It is meant for use by a callback from an NTNDArray record.

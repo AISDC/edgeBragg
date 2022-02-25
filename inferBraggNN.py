@@ -32,9 +32,9 @@ class inferBraggNNtrt:
             t_batch = 1000 * (time.time() - batch_tick)
             logging.info("A batch of %d patches was infered in %.3f ms (computing: %.3f ms), %d batches pending infer." % (\
                          self.mbsz, t_batch, t_comp, self.tq_patch.qsize()))
-            psz = in_mb.shape[-1]
-            ori_mb[:, 1:] += (pred * psz).astype(np.float32)
-            self.writer.append2write({"ploc":ori_mb, "patches":in_mb})
+
+            self.writer.append2write({"ploc":np.concatenate([ori_mb, pred*in_mb.shape[-1]], axis=1), \
+                                      "patches":in_mb})
 
 class inferBraggNNTorch:
     def __init__(self, script_pth, tq_patch, peak_writer):
@@ -67,5 +67,5 @@ class inferBraggNNTorch:
             logging.info("A batch of %d patches infered in %.3f ms (computing: %.3f ms), %d batches pending infer." % (\
                          pred.shape[0], t_batch, t_comp, self.tq_patch.qsize()))
 
-            self.writer.append2write({"ploc":np.concatenate([ori_mb, pred*self.psz], axis=1), \
+            self.writer.append2write({"ploc":np.concatenate([ori_mb, pred*in_mb.shape[-1]], axis=1), \
                                       "patches":in_mb})
