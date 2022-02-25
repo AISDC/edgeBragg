@@ -10,11 +10,11 @@ frame:
   nproc: 2 # number of processes for frame preproc
 
 infer:
-  tensorrt: False
+  tensorrt: True
   mbsz: 1024 
 
 output:
-  frame2file: "/net/wolf/data/users/zhengchun.liu/frames.h5"
+  frame2file: ""
   peaks2file: "/net/wolf/data/users/zhengchun.liu/peaks.h5"
 
 

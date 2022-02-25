@@ -1,0 +1,21 @@
+
+model:
+  psz: 11
+  model_fname: "models/feb402psz11.pth"
+
+frame:
+  min_intensity: 0
+  offset_recover: 30 # a[a>0] += 
+  pvkey: "GE5:Pva1:Image"
+  nproc: 4 # number of processes for frame preproc
+
+infer:
+  tensorrt: True
+  mbsz: 1024 
+
+output:
+  frame2file: "/net/wolf/data/users/zhengchun.liu/frames.h5"
+  peaks2file: "/net/wolf/data/users/zhengchun.liu/peaks.h5"
+
+
+

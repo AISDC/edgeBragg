@@ -92,7 +92,7 @@ if __name__ == '__main__':
     params = yaml.load(open(args.cfg, 'r'), Loader=yaml.CLoader)
 
     logging.basicConfig(filename='edgeBragg.log', level=logging.DEBUG,\
-                        format='%(asctime)s %(levelname)-8s %(message)s',)
+                        format='%(asctime)s %(levelname)s %(module)s: %(message)s',)
     if args.verbose != 0:
         logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
