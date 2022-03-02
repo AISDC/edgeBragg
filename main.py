@@ -57,14 +57,14 @@ def main(params):
         try:
             recv_prog = pva_client.recv_frames
             time.sleep(60)
-            if recv_prog == pva_client.recv_frames and pva_client.frame_tq.qsize()==0 and pva_client.patch_tq.qsize()==0:
+            if recv_prog == pva_client.recv_frames and tq_frame.qsize()==0 and tq_patch.qsize()==0:
                 logging.warning("program exits because of silence")
                 for _ in range(params['frame']['nproc']):
-                    pva_client.frame_tq.put((-1, None, None, None, None, None, None))
+                    tq_frame.put((-1, None, None, None, None, None, None))
                 break
         except KeyboardInterrupt:
             for _ in range(params['frame']['nproc']):
-                pva_client.frame_tq.put((-1, None, None, None, None, None, None))
+                tq_frame.put((-1, None, None, None, None, None, None))
             logging.critical("program exits because KeyboardInterrupt")
             break
         
