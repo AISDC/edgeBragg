@@ -17,6 +17,3 @@ infer:
 output:
   frame2file: "/net/wolf/data/users/zhengchun.liu/frames.h5"
   peaks2file: "/net/wolf/data/users/zhengchun.liu/peaks.h5"
-
-
-
