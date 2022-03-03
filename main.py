@@ -25,7 +25,7 @@ def main(params):
 
     # create async frame writer as needed
     if len(params['output']['frame2file']) > 0:
-        frame_writer = asyncHDFWriter(params['output']['frame2file'])
+        frame_writer = asyncHDFWriter(params['output']['frame2file'], compression=True)
         frame_writer.start()
     else:
         frame_writer = None
@@ -58,10 +58,13 @@ def main(params):
             recv_prog = pva_client.recv_frames
             time.sleep(60)
             if recv_prog == pva_client.recv_frames and tq_frame.qsize()==0 and tq_patch.qsize()==0:
-                logging.warning("program exits because of silence")
-                for _ in range(params['frame']['nproc']):
-                    tq_frame.put((-1, None, None, None, None, None, None))
-                break
+                if args.autoexit != 0:
+                    logging.warning("program exits because of silence")
+                    for _ in range(params['frame']['nproc']):
+                        tq_frame.put((-1, None, None, None, None, None, None))
+                    break
+                else:
+                    logging.warning("Program is alive, no frame came in the past minute.")
         except KeyboardInterrupt:
             for _ in range(params['frame']['nproc']):
                 tq_frame.put((-1, None, None, None, None, None, None))
@@ -76,6 +79,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='edge pipeline for Bragg peak finding')
     parser.add_argument('-gpus',    type=str, default="0", help='list of visiable GPUs')
     parser.add_argument('-cfg',     type=str, required=True, help='yaml config file')
+    parser.add_argument('-autoexit',type=int, default=0, help='exit when silent for a while')
     parser.add_argument('-verbose', type=int, default=1, help='non-zero to print logs to stdout')
 
     args, unparsed = parser.parse_known_args()

@@ -3,11 +3,12 @@ from multiprocessing import Process, Queue
 import numpy as np
 
 class asyncHDFWriter:
-    def __init__(self, fname):
+    def __init__(self, fname, compression=False):
         self.fname = fname
         self.h5fd = None
         self.buffer = {}
         self.task_q = Queue(maxsize=-1)
+        self.compression = compression
     '''
     Args:
         ddict: dict of datasets to be written to h5, data will be concatenated on
@@ -17,11 +18,11 @@ class asyncHDFWriter:
         self.task_q.put(ddict)
 
     def start(self,):
-        p = Process(target=self.peak_info_writing)
+        p = Process(target=self.write2file)
         p.start()
         logging.info(f"Async writer to {self.fname} started ...")
 
-    def peak_info_writing(self,):
+    def write2file(self,):
         while True:
             try:
                 ddict = self.task_q.get()
@@ -36,7 +37,10 @@ class asyncHDFWriter:
                 for key, data in ddict.items():
                     dshape = list(data.shape)
                     dshape[0] = None
-                    self.h5fd.create_dataset(key, data=data, chunks=True, maxshape=dshape)
+                    if self.compression:
+                        self.h5fd.create_dataset(key, data=data, chunks=True, maxshape=dshape, compression="gzip")
+                    else:
+                        self.h5fd.create_dataset(key, data=data, chunks=True, maxshape=dshape)
                     logging.info(f"{data.shape} samples added to '{key}' of {self.fname}")
             else:
                 for key, data in ddict.items():
