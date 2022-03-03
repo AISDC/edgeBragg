@@ -1,13 +1,13 @@
 import logging, time, threading, torch
 import numpy as np
-from asyncWriter import asyncHDFWriter
 
 class inferBraggNNtrt:
-    def __init__(self, mbsz, onnx_mdl, tq_patch, peak_writer):
+    def __init__(self, mbsz, onnx_mdl, tq_patch, peak_writer, zmq_writer=None):
         self.tq_patch = tq_patch
         self.mbsz = mbsz
         self.onnx_mdl = onnx_mdl
         self.writer = peak_writer
+        self.zmq_writer = zmq_writer
 
     def start(self, ):
         threading.Thread(target=self.batch_infer, daemon=True).start()
@@ -33,11 +33,14 @@ class inferBraggNNtrt:
             logging.info("A batch of %d patches was infered in %.3f ms (computing: %.3f ms), %d batches pending infer." % (\
                          self.mbsz, t_batch, t_comp, self.tq_patch.qsize()))
 
-            self.writer.append2write({"ploc":np.concatenate([ori_mb, pred*in_mb.shape[-1]], axis=1), \
-                                      "patches":in_mb})
+            ddict = {"ploc":np.concatenate([ori_mb, pred*in_mb.shape[-1]], axis=1), \
+                     "patches":in_mb}
+            self.writer.append2write(ddict)
+            if self.zmq_writer is not None:
+                self.zmq_writer.append2write(ddict)
 
 class inferBraggNNTorch:
-    def __init__(self, script_pth, tq_patch, peak_writer):
+    def __init__(self, script_pth, tq_patch, peak_writer, zmq_writer=None):
         self.tq_patch = tq_patch
         self.torch_dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if torch.cuda.is_available():
@@ -49,6 +52,7 @@ class inferBraggNNTorch:
         # self.BraggNN = torch.jit.optimize_for_inference(self.BraggNN) # still in PyTroch prototype
 
         self.writer = peak_writer
+        self.zmq_writer = zmq_writer
         logging.info("PyTorch Inference engine initialization completed!")
 
     def start(self, ):
@@ -67,5 +71,8 @@ class inferBraggNNTorch:
             logging.info("A batch of %d patches infered in %.3f ms (computing: %.3f ms), %d batches pending infer." % (\
                          pred.shape[0], t_batch, t_comp, self.tq_patch.qsize()))
 
-            self.writer.append2write({"ploc":np.concatenate([ori_mb, pred*in_mb.shape[-1]], axis=1), \
-                                      "patches":in_mb})
+            ddict = {"ploc":np.concatenate([ori_mb, pred*in_mb.shape[-1]], axis=1), \
+                     "patches":in_mb}
+            self.writer.append2write(ddict)
+            if self.zmq_writer is not None:
+                self.zmq_writer.append2write(ddict)

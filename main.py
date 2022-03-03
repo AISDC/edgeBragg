@@ -6,7 +6,7 @@ from multiprocessing import Process, Queue
 
 from inferBraggNN import inferBraggNNtrt, inferBraggNNTorch
 from frameProcess import frame_process_worker_func
-from asyncWriter import asyncHDFWriter
+from asyncWriter import asyncHDFWriter, asyncZMQWriter
 from pvaClient import pvaClient
 from trtUtil import scriptpth2onnx
 
@@ -23,6 +23,9 @@ def main(params):
     peak_writer = asyncHDFWriter(params['output']['peaks2file'])
     peak_writer.start()
 
+    peak_writer4viz = asyncZMQWriter(port=params['output']['port4zmq'])
+    peak_writer4viz.start()
+
     # create async frame writer as needed
     if len(params['output']['frame2file']) > 0:
         frame_writer = asyncHDFWriter(params['output']['frame2file'], compression=True)
@@ -36,9 +39,11 @@ def main(params):
     # initialize inference engine, which consumes patches from tq_patch
     if params['infer']['tensorrt']:
         onnx_fn = scriptpth2onnx(pth=params['model']['model_fname'], mbsz=params['infer']['mbsz'], psz=params['model']['psz'])
-        infer_engine = inferBraggNNtrt(mbsz=params['infer']['mbsz'], onnx_mdl=onnx_fn, tq_patch=tq_patch, peak_writer=peak_writer)
+        infer_engine = inferBraggNNtrt(mbsz=params['infer']['mbsz'], onnx_mdl=onnx_fn, tq_patch=tq_patch, \
+                                       peak_writer=peak_writer, zmq_writer=peak_writer4viz)
     else:
-        infer_engine = inferBraggNNTorch(script_pth=params['model']['model_fname'], tq_patch=tq_patch, peak_writer=peak_writer)
+        infer_engine = inferBraggNNTorch(script_pth=params['model']['model_fname'], tq_patch=tq_patch, \
+                                         peak_writer=peak_writer, zmq_writer=peak_writer4viz)
     infer_engine.start()
 
     # start a pool of processes to digest frame from tq_frame and push patches into tq_patch
@@ -81,6 +86,7 @@ if __name__ == '__main__':
     parser.add_argument('-cfg',     type=str, required=True, help='yaml config file')
     parser.add_argument('-autoexit',type=int, default=0, help='exit when silent for a while')
     parser.add_argument('-verbose', type=int, default=1, help='non-zero to print logs to stdout')
+    parser.add_argument('-viz',     type=int, default=1, help='non-zero to publish peak for viz')
 
     args, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
