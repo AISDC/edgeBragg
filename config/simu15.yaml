@@ -9,6 +9,7 @@ frame:
   pvkey: "1id-ADSim2:Pva1:Image"
   nproc: 2 # number of processes for frame preproc
   max_radius: 1000
+  min_peak_sz: 3 # minimum number of non-pixel
   
 infer:
   tensorrt: False
@@ -17,3 +18,4 @@ infer:
 output:
   frame2file: "/net/wolf/data/users/zhengchun.liu/frames.h5"
   peaks2file: "/net/wolf/data/users/zhengchun.liu/peaks.h5"
+  port4zmq: 5678

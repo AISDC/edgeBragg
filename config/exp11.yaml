@@ -9,14 +9,13 @@ frame:
   pvkey: "GE5:Pva1:Image"
   nproc: 4 # number of processes for frame preproc
   max_radius: 1000
+  min_peak_sz: 3 # minimum number of non-pixel
   
 infer:
   tensorrt: True
-  mbsz: 1024 
+  mbsz: 32 
 
 output:
   frame2file: "/net/wolf/data/users/zhengchun.liu/frames.h5"
   peaks2file: "/net/wolf/data/users/zhengchun.liu/peaks.h5"
-
-
-
+  port4zmq: 5678
