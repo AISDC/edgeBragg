@@ -1,7 +1,7 @@
-# edgeHEDM
-Realtime Bragg peak analysis on the edge near data source
+# edgeBragg
+Real-time Bragg peak analysis using AI@Edge near data source. This is a part towards full HEDM at Edge using AI/ML, in real-time.
 
-![Software Arch](doc/demo.gif)
+![Demo](doc/demo.gif)
 
 This repo hosts code to localize (with sub-pixel accuracy) Bragg peaks from X-ray diffraction frames streamed from EPICS-enabled area detector.
 [BraggNN](https://doi.org/10.1107/S2052252521011258) trained using code in this [repo](https://github.com/lzhengchun/BraggNN) or remote data center AI-system using this distributed [workflow](https://arxiv.org/abs/2105.13967), is used to localize Bragg peaks faster than conventional psuedo-Voigt.
