@@ -8,7 +8,7 @@ This repo hosts code to localize (with sub-pixel accuracy) Bragg peaks from X-ra
 
 For debug and evaluation purpose, one can also use `daq-simu-pva.py` to simulate data (of given) streamed from the area detector.
 
-![Software Arch](doc/edgeBragg.png)
+![Software Arch](doc/edgeBragg-Full-Pipeline.png)
 
 ## Citation
 If you use this code for your research, please cite our paper(s):
