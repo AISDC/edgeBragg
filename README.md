@@ -13,7 +13,9 @@ For debug and evaluation purpose, one can also use `daq-simu-pva.py` to simulate
 ## Citation
 If you use this code for your research, please cite our paper(s):
 
-- Liu, Zhengchun, Hemant Sharma, J-S. Park, Peter Kenesei, Antonino Miceli, Jonathan Almer, Rajkumar Kettimuthu, and Ian Foster. "BraggNN: fast X-ray Bragg peak analysis using deep learning." IUCrJ 9, no. 1 (2022).
+- Zhengchun Liu, Hemant Sharma, J-S. Park, Peter Kenesei, Antonino Miceli, Jonathan Almer, Rajkumar Kettimuthu, and Ian Foster. "BraggNN: fast X-ray Bragg peak analysis using deep learning." IUCrJ 9, no. 1 (2022).
+
+- Zhengchun Liu, Ahsan Ali, Peter Kenesei, Antonino Miceli, Hemant Sharma, Nicholas Schwarz, Dennis Trujillo et al. "Bridging Data Center AI Systems with Edge Computing for Actionable Information Retrieval." In 2021 3rd Annual Workshop on Extreme-scale Experiment-in-the-Loop Computing (XLOOP), pp. 15-23. IEEE, 2021.
 
 Or via bibtex
 
@@ -26,6 +28,15 @@ Or via bibtex
   number={1},
   year={2022},
   publisher={International Union of Crystallography}
+}
+
+@inproceedings{liu2021bridging,
+  title={Bridging Data Center AI Systems with Edge Computing for Actionable Information Retrieval},
+  author={Liu, Zhengchun and Ali, Ahsan and Kenesei, Peter and Miceli, Antonino and Sharma, Hemant and Schwarz, Nicholas and Trujillo, Dennis and Yoo, Hyunseung and Coffee, Ryan and Layad, Naoufal and others},
+  booktitle={2021 3rd Annual Workshop on Extreme-scale Experiment-in-the-Loop Computing (XLOOP)},
+  pages={15--23},
+  year={2021},
+  organization={IEEE}
 }
 
 ```
