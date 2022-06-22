@@ -4,15 +4,17 @@ model:
   model_fname: "models/feb402psz11.pth"
 
 frame:
+  dark_h5: null
   min_intensity: 100
   offset_recover: 0 # a[a>0] += 
   pvkey: "1id-ADSim2:Pva1:Image"
   nproc: 2 # number of processes for frame preproc
   max_radius: 1000
   min_peak_sz: 3 # minimum number of non-pixel
+  datatype: "ushortValue" # only if data are not compressed
   
 infer:
-  tensorrt: False
+  tensorrt: True
   mbsz: 1024 
 
 output:

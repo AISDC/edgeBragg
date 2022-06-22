@@ -2,11 +2,12 @@ import logging
 from multiprocessing import Queue
 
 class pvaClient:
-    def __init__(self, tq_frame):
+    def __init__(self, tq_frame, dtype):
         self.frames_processed = 0
         self.base_seq_id = None
         self.recv_frames = 0
         self.tq_frame = tq_frame
+        self.dtype = dtype
 
     # this function will be triggered to call by pva when there is a new frame
     def monitor(self, pv):
@@ -27,7 +28,7 @@ class pvaClient:
         else:
             compressed   = None
             uncompressed = None
-            data_codec   = pv['value'][0]['ushortValue']
+            data_codec   = pv['value'][0][self.dtype]
 
         self.tq_frame.put((frm_id, data_codec, compressed, uncompressed, codec, rows, cols))
         logging.info("received frame %d, total frame received: %d, should have received: %d; %d frames pending process" % (\

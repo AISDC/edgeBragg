@@ -27,14 +27,14 @@ def main(params):
     peak_writer4viz.start()
 
     # create async frame writer as needed
-    if len(params['output']['frame2file']) > 0:
+    if params['output']['frame2file'] is not None and len(params['output']['frame2file']) > 0:
         frame_writer = asyncHDFWriter(params['output']['frame2file'], compression=True)
         frame_writer.start()
     else:
         frame_writer = None
 
     # initialize pva, it pushes frames into tq_frame
-    pva_client = pvaClient(tq_frame=tq_frame)
+    pva_client = pvaClient(tq_frame=tq_frame, dtype=params['frame']['datatype'])
 
     # initialize inference engine, which consumes patches from tq_patch
     if params['infer']['tensorrt']:
@@ -51,7 +51,7 @@ def main(params):
         p = Process(target=frame_process_worker_func, \
                     args=(tq_frame, params['model']['psz'], tq_patch, params['infer']['mbsz'], \
                           params['frame']['offset_recover'], params['frame']['min_intensity'], \
-                          params['frame']['max_radius'], frame_writer))
+                          params['frame']['max_radius'], params['frame']['min_peak_sz'], frame_writer, params['frame']['dark_h5']))
         p.start()
 
     c.subscribe('monitor', pva_client.monitor)

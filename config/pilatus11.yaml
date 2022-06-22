@@ -1,0 +1,27 @@
+
+model:
+  psz: 11
+  model_fname: "models/feb402psz11.pth"
+
+frame:
+  dark_h5: null
+  min_intensity: 3
+  offset_recover: 30 # a[a>0] += 
+  pvkey: "1idPil:Pva1:Image"
+  nproc: 32 # number of processes for frame preproc
+  max_radius: 700
+  min_peak_sz: 3 # minimum number of non-pixel
+  datatype: "intValue" # only if data are not compressed
+  
+infer:
+  tensorrt: True
+  mbsz: 128
+
+output:
+  peaks2file: "/local/zliu/peaks.h5"
+  # peaks2file: "/net/wolf/data/users/zhengchun.liu/peaks.h5"
+
+  frame2file: "/local/zliu/frames.h5"
+  # frame2file: "/net/wolf/data/users/zhengchun.liu/frames.h5"
+  # frame2file: ""
+  port4zmq: 5678
