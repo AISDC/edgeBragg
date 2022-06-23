@@ -1,18 +1,17 @@
 import logging, time, threading, torch
 import numpy as np
 
-class inferBraggNNtrt:
+class inferBraggNNtrt(threading.Thread):
     def __init__(self, mbsz, onnx_mdl, tq_patch, peak_writer, zmq_writer=None):
+        threading.Thread.__init__(self)
+        self.daemon = True
         self.tq_patch = tq_patch
         self.mbsz = mbsz
         self.onnx_mdl = onnx_mdl
         self.writer = peak_writer
         self.zmq_writer = zmq_writer
 
-    def start(self, ):
-        threading.Thread(target=self.batch_infer, daemon=True).start()
-
-    def batch_infer(self, ):
+    def run(self, ):
         from trtUtil import engine_build_from_onnx, mem_allocation, inference
         import pycuda.autoinit # must be in the same thread as the actual cuda execution
         self.trt_engine = engine_build_from_onnx(self.onnx_mdl)
@@ -39,8 +38,10 @@ class inferBraggNNtrt:
             if self.zmq_writer is not None:
                 self.zmq_writer.append2write(ddict)
 
-class inferBraggNNTorch:
+class inferBraggNNTorch(threading.Thread):
     def __init__(self, script_pth, tq_patch, peak_writer, zmq_writer=None):
+        threading.Thread.__init__(self)
+        self.daemon = True
         self.tq_patch = tq_patch
         self.torch_dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if torch.cuda.is_available():
@@ -55,10 +56,7 @@ class inferBraggNNTorch:
         self.zmq_writer = zmq_writer
         logging.info("PyTorch Inference engine initialization completed!")
 
-    def start(self, ):
-        threading.Thread(target=self.batch_infer, daemon=True).start()
-
-    def batch_infer(self, ):
+    def run(self, ):
         while True:
             in_mb, ori_mb= self.tq_patch.get()
             batch_tick = time.time()

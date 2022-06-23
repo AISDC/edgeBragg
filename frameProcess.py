@@ -1,3 +1,5 @@
+# ToDo wrap into a class from Process
+
 import numpy as np
 import cv2, logging, multiprocessing, time, h5py
 from codecAD import CodecAD

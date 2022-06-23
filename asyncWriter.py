@@ -2,8 +2,10 @@ import h5py, logging, zmq, queue, threading
 from multiprocessing import Process, Queue
 import numpy as np
 
-class asyncHDFWriter:
+class asyncHDFWriter(threading.Thread):
     def __init__(self, fname, compression=False):
+        threading.Thread.__init__(self)
+        self.daemon = True
         self.fname = fname
         self.h5fd = None
         self.task_q = Queue(maxsize=-1)
@@ -16,12 +18,8 @@ class asyncHDFWriter:
     def append2write(self, ddict):
         self.task_q.put(ddict)
 
-    def start(self,):
-        p = Process(target=self.write2file, daemon=True)
-        p.start()
+    def run(self,):
         logging.info(f"Async writer to {self.fname} started ...")
-
-    def write2file(self,):
         while True:
             ddict = self.task_q.get()
             if self.h5fd is None:
@@ -45,21 +43,21 @@ class asyncHDFWriter:
 as zmq socket is not pickable, Thread, instead of Process should be used
 or move the socket creation to the sending function before loop
 '''
-class asyncZMQWriter:
+class asyncZMQWriter(threading.Thread):
     def __init__(self, port):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.port = port
         self.task_q = queue.Queue(maxsize=-1)
         self.context = zmq.Context()
         self.publisher = self.context.socket(zmq.PUB)
-        self.publisher.bind(f"tcp://*:{port}")
+        self.publisher.bind(f"tcp://*:{self.port}")
 
     def append2write(self, ddict):
         self.task_q.put(ddict)
 
-    def start(self,):
-        p = threading.Thread(target=self.write2zmq, daemon=True)
-        p.start()
-
-    def write2zmq(self,):
+    def run(self,):
+        logging.info(f"Async writer to ZMQ:{self.port} started ...")
         while True:
             ddict = self.task_q.get()
             ret = self.publisher.send_pyobj(ddict)
