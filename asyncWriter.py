@@ -17,7 +17,7 @@ class asyncHDFWriter:
         self.task_q.put(ddict)
 
     def start(self,):
-        p = Process(target=self.write2file)
+        p = Process(target=self.write2file, daemon=True)
         p.start()
         logging.info(f"Async writer to {self.fname} started ...")
 
@@ -42,7 +42,7 @@ class asyncHDFWriter:
             self.h5fd.flush()
 
 '''
-as zma socket is not pickable, Thread, instead of Process should be used
+as zmq socket is not pickable, Thread, instead of Process should be used
 or move the socket creation to the sending function before loop
 '''
 class asyncZMQWriter:
@@ -56,7 +56,7 @@ class asyncZMQWriter:
         self.task_q.put(ddict)
 
     def start(self,):
-        p = threading.Thread(target=self.write2zmq)
+        p = threading.Thread(target=self.write2zmq, daemon=True)
         p.start()
 
     def write2zmq(self,):

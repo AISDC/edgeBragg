@@ -51,7 +51,8 @@ def main(params):
         p = Process(target=frame_process_worker_func, \
                     args=(tq_frame, params['model']['psz'], tq_patch, params['infer']['mbsz'], \
                           params['frame']['offset_recover'], params['frame']['min_intensity'], \
-                          params['frame']['max_radius'], params['frame']['min_peak_sz'], frame_writer, params['frame']['dark_h5']))
+                          params['frame']['max_radius'], params['frame']['min_peak_sz'], frame_writer, params['frame']['dark_h5']),
+                    daemon=True)
         p.start()
 
     c.subscribe('monitor', pva_client.monitor)
